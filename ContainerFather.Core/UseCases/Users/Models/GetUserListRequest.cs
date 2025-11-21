@@ -1,6 +1,6 @@
 namespace ContainerFather.Core.UseCases.Users.Models;
 
-public class GetUserListRequest
+public record GetUserListRequest
 {
-    
+    public bool OnlyActive { get; set; }
 }

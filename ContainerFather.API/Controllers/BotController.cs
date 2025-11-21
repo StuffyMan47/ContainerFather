@@ -1,6 +1,10 @@
+using Microsoft.AspNetCore.Mvc;
+
 namespace ContainerFather.Controllers;
 
-public class BotController
+[ApiController]
+[Route("api/bot")]
+public class BotController : ControllerBase
 {
     
 }

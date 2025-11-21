@@ -9,16 +9,14 @@
     "Server": {
         "HeartbeatInterval": "00:00:30",
       "Queues": [
-        "default",
-        "externaldatasource",
-        "markdocs"
+        "default"
       ],
       "SchedulePollingInterval": "00:00:15",
       "ServerCheckInterval": "00:05:00",
-      "ServerName": "StoreWeb-47",
+      "ServerName": "container_bot-47",
       "ServerTimeout": "00:05:00",
       "ShutdownTimeout": "00:00:15",
-      "WorkerCount": 5
+      "WorkerCount": 20
     },
     "Credentials": {
       "User": "admin",

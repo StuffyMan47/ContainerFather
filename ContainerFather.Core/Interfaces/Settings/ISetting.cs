@@ -1,6 +1,8 @@
+using ContainerFather.Core.Interfaces.Settings.Models;
+
 namespace ContainerFather.Core.Interfaces.Settings;
 
-public class ISetting
+public interface ISetting
 {
-    
+    public BotConfiguration BotConfiguration { get; set; }
 }

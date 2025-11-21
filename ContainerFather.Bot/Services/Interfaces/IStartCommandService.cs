@@ -1,6 +1,6 @@
 namespace ContainerFather.Bot.Services.Interfaces;
 
-public class IStartCommandService
+public interface IStartCommandService
 {
-    
+    Task SetCommandsAsync();
 }

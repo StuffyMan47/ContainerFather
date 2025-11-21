@@ -1,10 +1,12 @@
 namespace ContainerFather.Bot.States;
 
-public enum AdminState
+public enum AdminDialogState
 {
     None,
     WaitingForChatId,
     WaitingForUserId,
     ManagingWeeklyMessage,
-    WaitingForNewWeeklyMessage
+    WaitingForNewWeeklyMessage,
+    ManagingDailyMessage,
+    WaitingForNewDailyMessage
 }

@@ -1,6 +1,8 @@
 namespace ContainerFather.Core.Enums;
 
-public class UserState
+public enum UserState
 {
-    
+    Active = 1,
+    Blocked = 2,
+    Inactive = 3
 }

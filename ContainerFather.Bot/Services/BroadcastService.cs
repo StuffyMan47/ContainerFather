@@ -1,6 +1,221 @@
+using ContainerFather.Bot.Services.Dto;
+using ContainerFather.Bot.Services.Interfaces;
+using ContainerFather.Bot.States;
+using ContainerFather.Core.Enums;
+using ContainerFather.Core.Interfaces.Settings.Models;
+using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
+using ContainerFather.Core.UseCases.Chats.Interfaces;
+using ContainerFather.Core.UseCases.Chats.Models;
+using ContainerFather.Core.UseCases.Users.Interfaces;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
+
 namespace ContainerFather.Bot.Services;
 
-public class BroadcastService
+public class BroadcastService : IBroadcastService
 {
+    private readonly Dictionary<long, BroadcastSession> _sessions = new();
+    private readonly IChatRepository _chatRepository;
+    private readonly ITelegramBotClient _botClient;
+    private readonly IBroadcastMessageRepository _broadcastMessageRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ILogger<BroadcastService> _logger;
+    private readonly IOptions<BotConfiguration> _options;
+
+    public BroadcastService(
+        IChatRepository chatRepository,
+        IUserRepository userRepository,
+        IOptions<BotConfiguration> options,
+        IBroadcastMessageRepository broadcastMessageRepository,
+        ILogger<BroadcastService> logger)
+    {
+        _options = options;
+        _userRepository = userRepository;
+        _broadcastMessageRepository = broadcastMessageRepository;
+        _chatRepository = chatRepository;
+        _botClient = new TelegramBotClient(options.Value.Token);;
+        _logger = logger;
+    }
+
+    public async Task StartBroadcastSessionAsync(long userId)
+    {
+        var chats = await _chatRepository.GetChatLists(CancellationToken.None);
+
+        _sessions[userId] = new BroadcastSession
+        {
+            UserId = userId,
+            State = BroadcastState.WaitingForChatSelection
+        };
+
+        var keyboard = CreateChatSelectionKeyboard(chats);
+
+        try
+        {
+            await _botClient.SendMessage(
+                chatId: userId,
+                text: "📢 Выберите чат для рассылки:",
+                replyMarkup: keyboard
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex);
+        }
+    }
+
+    public async Task SelectChatAsync(long userId, long chatId, string chatName)
+    {
+        if (_sessions.TryGetValue(userId, out var session))
+        {
+            session.SelectedChatId = chatId;
+            session.SelectedChatName = chatName;
+            session.State = BroadcastState.WaitingForMessageText;
+
+            await _botClient.SendMessage(
+                chatId: userId,
+                text: $"✅ Выбран чат: {chatName}\n\n📝 Введите текст сообщения для рассылки:",
+                replyMarkup: new ReplyKeyboardRemove()
+            );
+        }
+    }
+
+    public async Task ProcessBroadcastMessageAsync(long userId, string messageText)
+    {
+        if (!_sessions.TryGetValue(userId, out var session) || session.SelectedChatId == null)
+        {
+            await _botClient.SendMessage(userId,
+                "❌ Сессия рассылки не найдена. Начните заново с /sendMessage");
+            return;
+        }
+
+        try
+        {
+            var memberIds = await _chatRepository.GetChatMembers(session.SelectedChatId.Value, CancellationToken.None);
+            var sentCount = 0;
+            var failedCount = 0;
+
+            // Отправка сообщения о начале рассылки
+            await _botClient.SendMessage(
+                userId,
+                $"🚀 Начинаем рассылку в чат {session.SelectedChatName}...\nПолучателей: {memberIds.Count}"
+            );
+
+
+            // Рассылка каждому пользователю
+            foreach (var member in memberIds)
+            {
+                try
+                {
+                    await _botClient.SendMessage(
+                        member.UserTelegramId,
+                        text: messageText,
+                        disableNotification: false
+                    );
+                    sentCount++;
+                    await Task.Delay(50); // Задержка чтобы не превысить лимиты Telegram
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Не удалось отправить сообщение пользователю {UserId}", member.UserTelegramId);
+                    failedCount++;
+                }
+            }
+
+            // Отчет о результатах
+            await _botClient.SendMessage(
+                userId,
+                $"📊 Рассылка завершена!\n\n" +
+                $"✅ Успешно: {sentCount}\n" +
+                $"❌ Ошибок: {failedCount}\n" +
+                $"💬 Чат: {session.SelectedChatName}"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при выполнении рассылки");
+            await _botClient.SendMessage(userId, "❌ Произошла ошибка при рассылке");
+        }
+        finally
+        {
+            _sessions.Remove(userId);
+        }
+    }
+
+    public async Task CancelBroadcastSessionAsync(long userId)
+    {
+        _sessions.Remove(userId);
+        await _botClient.SendMessage(
+            userId,
+            "❌ Рассылка отменена",
+            replyMarkup: new ReplyKeyboardRemove()
+        );
+    }
+
+    public BroadcastSession? GetSession(long userId)
+    {
+        return _sessions.TryGetValue(userId, out var session) ? session : null;
+    }
+
+    private InlineKeyboardMarkup CreateChatSelectionKeyboard(List<GetChatListResponse> chats)
+    {
+        var buttons = chats.Select(chat =>
+            new[] { InlineKeyboardButton.WithCallbackData(chat.ChatName, $"broadcast_chat{chat.ChatId}") }
+        ).ToList();
+
+        // Добавляем кнопку отмены
+        buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "broadcast_cancel") });
+
+        return new InlineKeyboardMarkup(buttons);
+    }
+
+    public async Task SendWeeklyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
+    {
+        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Weekly, cancellationToken);
+        var userList = await _userRepository.GetUserListByChatId(chatId, cancellationToken);
+
+        foreach (var user in userList)
+        {
+            try
+            {
+                await _botClient.SendMessage(
+                    user.TelegramId,
+                    text: message.Message,
+                    disableNotification: true
+                );
+                await Task.Delay(50);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Не удалось отправить сообщение пользователю {UserId}", user.TelegramId);
+            }
+        }
+    }
     
+    public async Task SendDailyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
+    {
+        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily, cancellationToken);
+        var chat = await _chatRepository.GetChatById(chatId, cancellationToken);
+        if (message == null)
+        {
+            foreach (var adminId in _options.Value.AdminIds)
+            {
+                await _botClient.SendMessage(
+                    chatId: adminId,
+                    text: "Не установлено сообщение для еженедельной рассылки в чат https://t.me/container_Trading_Hub",
+                    disableNotification: true
+                );
+            }
+            
+            return;
+        }
+        
+        await _botClient.SendMessage(
+            chatId: chat.TelegramId,
+            text: message.Message,
+            disableNotification: true
+        );
+    }
 }

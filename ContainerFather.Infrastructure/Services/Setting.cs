@@ -1,18 +1,21 @@
+using ContainerFather.Core.Interfaces.Settings;
+using ContainerFather.Core.Interfaces.Settings.Models;
 using Microsoft.Extensions.Configuration;
 
 namespace ContainerFather.Infrastructure.Services;
 
-public class Settigns
+public class Setting : ISetting
 {
     public string ApplicationName { get; init; }
-    public AuthSettings AuthSettings { get; init; }
-    public FileStorageSettings StorageSettings { get; init; }
+    
+    public BotConfiguration BotConfiguration { get; set; }
 
-    public FestifySettigns(IConfiguration configuration)
+    public Setting(IConfiguration configuration)
     {
         var applicationSection = configuration.GetSection("Application");
 
         ApplicationName = applicationSection["Name"] ?? "Unknown application name";
-        AuthSettings = configuration.GetSection("Authentication").Get<AuthSettings>() ?? throw new InternalServerException("Не заданы настройки аутентификации");
+        BotConfiguration = configuration.GetSection("BotConfiguration").Get<BotConfiguration>() ?? throw new Exception("Не заданы настройки аутентификации");
     }
+
 }

@@ -1,6 +1,8 @@
 namespace ContainerFather.Bot.States;
 
-public class BroadcastState
+public enum BroadcastState
 {
-    
+    Idle,
+    WaitingForChatSelection,
+    WaitingForMessageText
 }
