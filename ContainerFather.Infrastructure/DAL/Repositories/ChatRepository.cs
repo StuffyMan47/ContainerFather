@@ -8,6 +8,35 @@ namespace ContainerFather.Infrastructure.DAL.Repositories;
 
 public class ChatRepository(AppDbContext dbContext) : IChatRepository
 {
+
+    public async Task ConnectUserToChat(long userId, long chatId)
+    {
+        var sql = @"
+        INSERT INTO chat_user (users_id, chats_id)
+        VALUES ({0}, {1})
+        ON CONFLICT (users_id, chats_id) DO NOTHING";
+
+        await dbContext.Database.ExecuteSqlRawAsync(sql, userId, chatId);
+    }
+    
+    public async Task<long> GetOrCreateChat(long telegramChatId, string name, CancellationToken cancellationToken)
+    {
+        var chat = await dbContext.Chats.Where(x=>x.TelegramId == telegramChatId).FirstOrDefaultAsync(cancellationToken);
+
+        if (chat == null)
+        {
+            chat = new Chat
+            {
+                TelegramId = telegramChatId,
+                CreatedAt = DateTimeOffset.UtcNow,
+                Description = null,
+                Name = name,
+            };
+            dbContext.Chats.Add(chat);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        return chat.Id;
+    }
     public async Task<long> CreateChat(CreateChatRequest request, CancellationToken cancellationToken)
     {
         var chat = new Chat()

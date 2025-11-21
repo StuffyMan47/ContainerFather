@@ -114,7 +114,8 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
             {
                 Id = x.Id,
                 Username = x.Username,
-                TelegramId = x.TelegramId
+                TelegramId = x.TelegramId,
+                ChatIds = x.Chats.Select(c => c.Id).ToList()
             })
             .FirstOrDefaultAsync(x=>x.TelegramId == id, cancellationToken);
         return result;

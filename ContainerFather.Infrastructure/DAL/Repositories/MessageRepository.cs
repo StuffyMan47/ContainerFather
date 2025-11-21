@@ -10,15 +10,11 @@ public class MessageRepository(AppDbContext dbContext) : IMessageRepository
 {
     public async Task<long> SaveMessageAsync(long telegramUserId, string text, long chatId)
     {
-        var chat = await dbContext.Chats
-            .AsNoTracking()
-            .FirstAsync(x=>x.TelegramId == chatId);
-        
         var message = new Message
         {
             Content = text,
             UserId = telegramUserId,
-            ChatId = chat.Id
+            ChatId = chatId
         };
         
         dbContext.Messages.Add(message);

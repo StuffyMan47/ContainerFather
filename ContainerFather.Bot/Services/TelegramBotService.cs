@@ -136,18 +136,22 @@ public class TelegramBotService(
         if (update.Message is not { } message)
             return;
 
-        var chatId = message.Chat.Id;
         var telegramUserId = message.From?.Id;
         var text = message.Text ?? string.Empty;
 
         if (telegramUserId == null) return;
-
-        // Сохраняем пользователя
-        var userId = await SaveOrUpdateUserAsync(message.From!, cancellationToken);
+        
 
         if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
         {
+            var chatId = await chatRepository.GetOrCreateChat(message.Chat.Id, message.Chat.Title ?? "no name group", cancellationToken);
+            var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
+
             await messageRepository.SaveMessageAsync(userId, text, chatId);
+        }
+        else
+        {
+            var userId = await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
         }
 
         if (message.Chat.Type is ChatType.Private)
@@ -172,10 +176,11 @@ public class TelegramBotService(
         }
     }
 
-    private async Task<long> SaveOrUpdateUserAsync(User user, CancellationToken cancellationToken)
+    private async Task<long> SaveOrUpdateUserAsync(User user, long? chatId, CancellationToken cancellationToken)
     {
         var existingUser = await userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
         long userId;
+        
         if (existingUser == null)
         {
             var newUser = new CreateUserRequest
@@ -184,10 +189,17 @@ public class TelegramBotService(
                 Username = user.Username,
             };
             userId = await userRepository.CreateUser(newUser, cancellationToken);
-            return userId;
+        }
+        else
+        {
+            userId = existingUser.Id;
         }
 
-        userId = existingUser.Id;
+        if (chatId != null && ((existingUser != null && !existingUser.ChatIds.Contains(chatId.Value)) || existingUser == null))
+        {
+            await chatRepository.ConnectUserToChat(userId, chatId.Value);
+        }
+        
         return userId;
     }
 
@@ -208,7 +220,7 @@ public class TelegramBotService(
         switch (command.ToLower())
         {
             case "/start":
-                await SaveOrUpdateUserAsync(message.From!, cancellationToken);
+                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
                 break;
             case "/help":
                 await SendHelpMessage(message, cancellationToken);
@@ -247,7 +259,7 @@ public class TelegramBotService(
         switch (command.ToLower())
         {
             case "/start":
-                await SaveOrUpdateUserAsync(message.From!, cancellationToken);
+                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
                 break;
             case "/help":
                 await SendHelpMessage(message, cancellationToken);
