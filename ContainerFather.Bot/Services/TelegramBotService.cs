@@ -44,7 +44,7 @@ public class TelegramBotService(
         var botClient = new TelegramBotClient(options.Value.Token);
         
         
-        if (options.Value.AdminIds.Contains(update.Message.From.Id) && adminDialogService.IsInDialog(update.Message.From.Id))
+        if (update.Message != null && update.Message.From != null && options.Value.AdminIds.Contains(update.Message.From.Id) && adminDialogService.IsInDialog(update.Message.From.Id))
         {
             var adminId = update.Message.From.Id;
             var currentState = adminDialogService.GetDialogState(adminId);
