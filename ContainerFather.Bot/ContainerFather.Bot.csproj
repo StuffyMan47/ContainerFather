@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="ClosedXML" Version="0.105.0" />
+      <PackageReference Include="Google.Apis.Sheets.v4" Version="1.70.0.3819" />
+      <PackageReference Include="Hangfire" Version="1.8.22" />
+      <PackageReference Include="Hangfire.Console" Version="1.4.3" />
+      <PackageReference Include="Hangfire.PostgreSql" Version="1.20.12" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.10" />
+      <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.6" />
+      <PackageReference Include="Telegram.Bot" Version="22.7.4" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\ContainerFather.Core\ContainerFather.Core.csproj" />
+    </ItemGroup>
+
+</Project>

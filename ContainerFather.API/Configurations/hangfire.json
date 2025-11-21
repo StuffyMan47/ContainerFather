@@ -1,0 +1,28 @@
+{
+  "HangfireSettings": {
+    "Route": "/jobs",
+    "Dashboard": {
+      "AppPath": "/",
+      "StatsPollingInterval": 5000,
+      "DashboardTitle": "Jobs"
+    },
+    "Server": {
+        "HeartbeatInterval": "00:00:30",
+      "Queues": [
+        "default",
+        "externaldatasource",
+        "markdocs"
+      ],
+      "SchedulePollingInterval": "00:00:15",
+      "ServerCheckInterval": "00:05:00",
+      "ServerName": "StoreWeb-47",
+      "ServerTimeout": "00:05:00",
+      "ShutdownTimeout": "00:00:15",
+      "WorkerCount": 5
+    },
+    "Credentials": {
+      "User": "admin",
+      "Password": "admin"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+@ContainerFather_HostAddress = http://localhost:5175
+
+GET {{ContainerFather_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
