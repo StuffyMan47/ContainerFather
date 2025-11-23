@@ -6,6 +6,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <NoDefaultLaunchSettingsFile>True</NoDefaultLaunchSettingsFile>
         <RootNamespace>ContainerFather</RootNamespace>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
 
     <ItemGroup>
@@ -20,6 +21,12 @@
       <ProjectReference Include="..\ContainerFather.Bot\ContainerFather.Bot.csproj" />
       <ProjectReference Include="..\ContainerFather.Core\ContainerFather.Core.csproj" />
       <ProjectReference Include="..\ContainerFather.Infrastructure\ContainerFather.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>
