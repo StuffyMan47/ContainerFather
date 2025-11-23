@@ -1,4 +1,4 @@
-﻿namespace StoreWeb.Api.Configurations;
+﻿namespace ContainerFather.Configurations;
 
 internal static class Startup
 {
