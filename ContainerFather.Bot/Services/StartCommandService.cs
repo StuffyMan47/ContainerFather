@@ -29,8 +29,8 @@ public class StartCommandService : IStartCommandService
             // 2. Устанавливаем команды для ВСЕХ личных чатов
             var userCommands = new[]
             {
-                new BotCommand("start", "Запустить бота"),
-                // new BotCommand("help", "Как заполнять таблицу"),
+                // new BotCommand("start", "Запустить бота"),
+                new BotCommand("excel", "Получить шаблон Excel таблицы"),
             };
         
             await _botClient.SetMyCommands(

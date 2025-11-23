@@ -93,6 +93,7 @@ public class TelegramBotService
         // Пересылка сообщений от обычных пользователей админам
         if (update.Type == UpdateType.Message && 
             update.Message?.From != null && 
+            !update.Message.Text.StartsWith('/') &&
             !_botConfiguration.AdminIds.Contains(update.Message.From.Id))
         {
             await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
@@ -274,8 +275,13 @@ public class TelegramBotService
         {
             case "/start":
                 await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
+                await SendHelpMessage(message, cancellationToken);
                 break;
-            case "/help":
+            case "/restart":
+                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
+                await SendHelpMessage(message, cancellationToken);
+                break;
+            case "/excel":
                 await SendHelpMessage(message, cancellationToken);
                 break;
         }
@@ -285,8 +291,7 @@ public class TelegramBotService
     {
         await _botClient.SendMessage(
             message.Chat.Id,
-            "С помощью этого бота вы можете загрузить свои предложения о продаже контейнеров для наших администраторов. " +
-            "Для этого отправьте Excel документ заполненный по шаблону в бота");
+            "Отправьте данные о ваших контейнерах любым удобным способом:\n— Excel-файл по нашему шаблону\n— Ваш прайс-лист в любом формате\n— Просто напишите в сообщении цены и наличие по городам");
 
         string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
 
