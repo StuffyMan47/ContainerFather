@@ -62,8 +62,12 @@ public class BroadcastMessageRepository(AppDbContext dbContext) : IBroadcastMess
         throw new NotImplementedException();
     }
 
-    public Task DeleteBroadcastMessage()
+    public async Task DeactivateBroadcastMessage(BroadcastMessagePeriodType periodType, CancellationToken cancellationToken)
     {
-        throw new NotImplementedException();
+        await dbContext.BroadcastMessages
+            .Where(x=>x.PeriodType == periodType)
+            .ExecuteUpdateAsync(x=>x
+                .SetProperty(y=> y.IsActive, false), 
+                cancellationToken);
     }
 }

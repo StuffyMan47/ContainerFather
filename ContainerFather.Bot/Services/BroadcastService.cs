@@ -174,8 +174,20 @@ public class BroadcastService : IBroadcastService
     public async Task SendWeeklyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
     {
         var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Weekly, cancellationToken);
+        if (message == null)
+        {
+            foreach (var adminId in _options.Value.AdminIds)
+            {
+                await _botClient.SendMessage(
+                    chatId: adminId,
+                    text: "Еженеделная рассылка отменена пока не создано сообщение для нее",
+                    disableNotification: false
+                );
+            }
+            return;
+        }
+        
         var userList = await _userRepository.GetUserListByChatId(chatId, cancellationToken);
-
         foreach (var user in userList)
         {
             try
@@ -197,25 +209,24 @@ public class BroadcastService : IBroadcastService
     public async Task SendDailyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
     {
         var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily, cancellationToken);
-        var chat = await _chatRepository.GetChatById(chatId, cancellationToken);
         if (message == null)
         {
             foreach (var adminId in _options.Value.AdminIds)
             {
                 await _botClient.SendMessage(
                     chatId: adminId,
-                    text: "Не установлено сообщение для еженедельной рассылки в чат https://t.me/container_Trading_Hub",
-                    disableNotification: true
+                    text: "Ежедневная рассылка отменена пока не создано сообщение для нее",
+                    disableNotification: false
                 );
             }
-            
             return;
         }
-        
+        var chat = await _chatRepository.GetChatById(chatId, cancellationToken);
+
         await _botClient.SendMessage(
             chatId: chat.TelegramId,
             text: message.Message,
-            disableNotification: true
+            disableNotification: false
         );
     }
 }

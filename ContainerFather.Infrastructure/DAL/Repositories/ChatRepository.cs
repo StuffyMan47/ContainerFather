@@ -65,6 +65,9 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
 
     public async Task<GetChatStatisticResponse?> GetChatStatistic(long chatId, CancellationToken cancellationToken)
     {
+        var today = DateTimeOffset.UtcNow;
+        var firstDayOfMonth = new DateTimeOffset(today.Year, today.Month, 1, 0, 0, 0, today.Offset);
+        
         var result = await dbContext.Chats
             .AsNoTracking()
             .Where(c => c.Id == chatId)
@@ -73,8 +76,12 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
             .Select(x => new GetChatStatisticResponse
             {
                 ChatName = x.Name,
-                MessageCount = x.Messages.Count,
+                MessageCount = x.Messages
+                    .Where(m => m.CreatedAt >= firstDayOfMonth)
+                    .ToList()
+                    .Count,
                 PersonalStatistics = x.Messages
+                    .Where(m => m.CreatedAt >= firstDayOfMonth)
                     .GroupBy(y => y.UserId)
                     .Select(y => new PersonalStatistic
                     {

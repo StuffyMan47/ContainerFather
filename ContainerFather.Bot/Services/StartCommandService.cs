@@ -30,7 +30,7 @@ public class StartCommandService : IStartCommandService
             var userCommands = new[]
             {
                 new BotCommand("start", "Запустить бота"),
-                new BotCommand("help", "Помощь")
+                // new BotCommand("help", "Как заполнять таблицу"),
             };
         
             await _botClient.SetMyCommands(
@@ -41,13 +41,13 @@ public class StartCommandService : IStartCommandService
             // Команды для администраторов
             var adminCommands = new List<BotCommand>
             {
-                new() { Command = "start", Description = "Запустить бота" },
-                new() { Command = "help", Description = "Помощь" },
+                // new() { Command = "start", Description = "Запустить бота" },
+                // new() { Command = "help", Description = "Помощь" },
                 new() { Command = "sendmessage", Description = "Отправить рассылку" },
                 new() { Command = "getstatisticbychatid", Description = "Статистика по чату" },
                 new() { Command = "getstatisticbyuserid", Description = "Статистика по пользователю" },
-                new() { Command = "setweeklymessage", Description = "Установить еженедельное сообщение" },
-                new() { Command = "setdailymessage", Description = "Установить ежедневное сообщение" },
+                new() { Command = "setweeklymessage", Description = "Установить еженедельное сообщение подписчикам" },
+                new() { Command = "setdailymessage", Description = "Установить ежедневное сообщение для группы" },
             };
 
             foreach (var adminId in _options.Value.AdminIds)

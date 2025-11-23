@@ -14,5 +14,5 @@ public interface IBroadcastMessageRepository : IScopedService
     Task DeactivateAllAsync();
     Task<long> CreateBroadcastMessage(CreateBroadcastMessageRequest request, CancellationToken cancellationToken);
     Task UpdateBroadcastMessage(UpdateBroadcastMessageRequest request);
-    Task DeleteBroadcastMessage();
+    Task DeactivateBroadcastMessage(BroadcastMessagePeriodType periodType, CancellationToken cancellationToken);
 }

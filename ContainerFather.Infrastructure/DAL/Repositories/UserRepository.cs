@@ -36,11 +36,15 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
 
         if (userInfo == null)
             return null;
+        
+        var today = DateTimeOffset.UtcNow;
+        var firstDayOfMonth = new DateTimeOffset(today.Year, today.Month, 1, 0, 0, 0, today.Offset);
 
         // Получаем статистику по чатам
         var chatStatistics = await dbContext.Messages
             .AsNoTracking()
             .Where(m => m.User.Id == userId) // Фильтруем по ID пользователя
+            .Where(m => m.CreatedAt >= firstDayOfMonth)
             .Include(m => m.Chat)
             .GroupBy(m => new { m.ChatId, m.Chat.Name }) // Группируем по чату
             .Select(g => new ChatStatisticResponse
@@ -48,7 +52,6 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
                 ChatName = g.Key.Name,
                 MessageCount = g.Count(),
                 Messages = g.OrderByDescending(m => m.CreatedAt)
-                    .Take(10) // Берем последние 10 сообщений для примера
                     .Select(m => m.Content) // Используем Text вместо Content
                     .ToList()
             })

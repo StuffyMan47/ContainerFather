@@ -87,29 +87,21 @@ public class TelegramBotService
                 case AdminDialogState.WaitingForNewDailyMessage:
                     await HandleNewDailyMessageInputAsync(adminId, update.Message, cancellationToken);
                     return;
-
-                // Другие состояния...
             }
         }
-
-        if (update.Type == UpdateType.Message && update.Message.Type == MessageType.Document)
+        
+        // Пересылка сообщений от обычных пользователей админам
+        if (update.Type == UpdateType.Message && 
+            update.Message?.From != null && 
+            !_botConfiguration.AdminIds.Contains(update.Message.From.Id))
         {
-            var fileId = update.Message.Document.FileId;
-            await using var ms = new MemoryStream();
-            var tgFile = await _botClient.GetInfoAndDownloadFile(fileId, ms);
+            await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
+        }
 
-            var result = update.Message.Document.FileName!.ToLower() switch
-            {
-                var name when name.EndsWith(".xlsx") => ParseExcel(ms, update.Message.From.Username),
-                _ => throw new Exception("Неподдерживаемый формат файла. Поддерживаются только CSV и XLSX.")
-            };
-
-            if (result.Any())
-            {
-                await WriteToGoogleSheets(result);
-                await _botClient.SendMessage(update.Message.Chat.Id,
-                    $"Данные записаны в Google Sheets", cancellationToken: cancellationToken);
-            }
+        // Обработка документов
+        if (update.Type == UpdateType.Message && update.Message?.Type == MessageType.Document)
+        {
+            await HandleDocumentMessageAsync(update.Message, cancellationToken);
         }
 
         if (update.Type == UpdateType.CallbackQuery)
@@ -521,7 +513,8 @@ public class TelegramBotService
         var keyboard = new ReplyKeyboardMarkup(new[]
         {
             new KeyboardButton[] { "Оставить как есть" },
-            new KeyboardButton[] { "Изменить сообщение" }
+            new KeyboardButton[] { "Изменить" },
+            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку"}
         })
         {
             ResizeKeyboard = true,
@@ -543,23 +536,21 @@ public class TelegramBotService
     {
         var adminId = message.From.Id;
 
-        // Получаем текущее еженедельное сообщение
+        // Получаем текущее ежедневное сообщение
         var currentMessage =
             await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily,
                 cancellationToken);
         var currentMessageText = currentMessage?.Message ?? "Не установлено";
 
-        var response = $"Текущее еженедельное сообщение:\n\n{currentMessageText}\n\n";
+        var response = $"Текущее ежедневное сообщение:\n\n{currentMessageText}\n\n";
         response += "Выберите действие:";
 
         // Создаем клавиатуру с кнопками
         var keyboard = new ReplyKeyboardMarkup(new[]
         {
-            new[]
-            {
-                new KeyboardButton("Оставить как есть"),
-                new KeyboardButton("Изменить")
-            }
+            new KeyboardButton[] { "Оставить как есть" },
+            new KeyboardButton[] { "Изменить" },
+            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку"}
         })
         {
             ResizeKeyboard = true,
@@ -595,7 +586,7 @@ public class TelegramBotService
             return;
         }
 
-        if (action == "Изменить сообщение")
+        if (action == "Изменить")
         {
             await _botClient.SendMessage(
                 chatId: message.Chat.Id,
@@ -606,6 +597,21 @@ public class TelegramBotService
 
             // Переходим к следующему состоянию
             _adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewWeeklyMessage);
+            return;
+        }
+
+        if (action == "Удалить текущее сообщение и отменить рассылку")
+        {
+            await _broadcastMessageRepository.DeactivateBroadcastMessage(BroadcastMessagePeriodType.Weekly,
+                cancellationToken);
+            
+            await _botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: "✅ Еженедельное сообщение удалено. Рассылка отключена до создания нового сообщения",
+                replyMarkup: new ReplyKeyboardRemove(),
+                cancellationToken: cancellationToken
+            );
+            _adminDialogService.CompleteDialog(adminId);
             return;
         }
 
@@ -678,6 +684,21 @@ public class TelegramBotService
 
             // Переходим к следующему состоянию
             _adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewDailyMessage);
+            return;
+        }
+        
+        if (action == "Удалить текущее сообщение и отменить рассылку")
+        {
+            await _broadcastMessageRepository.DeactivateBroadcastMessage(BroadcastMessagePeriodType.Daily,
+                cancellationToken);
+            
+            await _botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: "✅ Ежедневное сообщение удалено. Рассылка отключена до создания нового сообщения",
+                replyMarkup: new ReplyKeyboardRemove(),
+                cancellationToken: cancellationToken
+            );
+            _adminDialogService.CompleteDialog(adminId);
             return;
         }
 
@@ -799,7 +820,7 @@ public class TelegramBotService
             foreach (var model in models)
             {
                 // Безопасное форматирование даты с обработкой null
-                string formattedDate = model.Date.ToString("dd.MM.yyyy HH:mm");
+                string formattedDate = DateTimeOffset.UtcNow.ToString("dd.MM.yyyy HH:mm");
 
                 var row = new List<object>
                 {
@@ -869,4 +890,110 @@ public class TelegramBotService
             throw;
         }
     }
+    
+    private async Task ForwardUserMessageToAdminsAsync(Message message, CancellationToken cancellationToken)
+{
+    try
+    {
+        // Проверяем, что это не Excel файл
+        var isExcelFile = message.Type == MessageType.Document && 
+                         message.Document?.FileName?.ToLower().EndsWith(".xlsx") == true;
+
+        if (!isExcelFile)
+        {
+            var userInfo = $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
+
+            foreach (var adminId in _botConfiguration.AdminIds)
+            {
+                try
+                {
+                    // Сначала отправляем информацию о пользователе
+                    await _botClient.SendMessage(
+                        chatId: adminId,
+                        text: userInfo,
+                        cancellationToken: cancellationToken);
+
+                    // Пересылаем само сообщение
+                    await _botClient.ForwardMessage(
+                        chatId: adminId,
+                        fromChatId: message.Chat.Id,
+                        messageId: message.MessageId,
+                        cancellationToken: cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Не удалось переслать сообщение админу {adminId}", ex.Message);
+                }
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Ошибка при пересылке сообщения от пользователя {message.From?.Id}", ex.Message);
+    }
+}
+
+private async Task HandleDocumentMessageAsync(Message message, CancellationToken cancellationToken)
+{
+    try
+    {
+        var fileId = message.Document.FileId;
+        await using var ms = new MemoryStream();
+        var tgFile = await _botClient.GetInfoAndDownloadFile(fileId, ms, cancellationToken);
+
+        var result = message.Document.FileName!.ToLower() switch
+        {
+            var name when name.EndsWith(".xlsx") => ParseExcel(ms, message.From.Username),
+            _ => throw new Exception("Неподдерживаемый формат файла. Поддерживаются только CSV и XLSX.")
+        };
+
+        if (result.Any())
+        {
+            await WriteToGoogleSheets(result);
+            await _botClient.SendMessage(message.Chat.Id,
+                $"Данные записаны", cancellationToken: cancellationToken);
+
+            foreach (var adminId in _botConfiguration.AdminIds)
+            {
+                // Сначала отправляем информацию о пользователе
+                await _botClient.SendMessage(
+                    chatId: adminId,
+                    text: $"Данные от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username}) записаны в Google таблицу",
+                    cancellationToken: cancellationToken);
+            }
+        }
+        else
+        {
+            var userInfo = $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
+            
+            foreach (var adminId in _botConfiguration.AdminIds)
+            {
+                // Сначала отправляем информацию о пользователе
+                await _botClient.SendMessage(
+                    chatId: adminId,
+                    text: userInfo,
+                    cancellationToken: cancellationToken);
+                
+                await _botClient.ForwardMessage(
+                    chatId: adminId,
+                    fromChatId: message.Chat.Id,
+                    messageId: message.MessageId,
+                    cancellationToken: cancellationToken);
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Ошибка обработки документа", ex.Message);
+        
+        // Отправляем ошибку только админам или пользователю, если он админ
+        if (_botConfiguration.AdminIds.Contains(message.From.Id))
+        {
+            await _botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: $"Ошибка: {ex.Message}",
+                cancellationToken: cancellationToken);
+        }
+    }
+}
 }
