@@ -27,70 +27,91 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ContainerFather.Bot.Services;
 
-public class TelegramBotService(
-    IUserRepository userRepository,
-    IMessageRepository messageRepository,
-    IBroadcastMessageRepository broadcastMessageRepository,
-    IChatRepository chatRepository,
-    IAdminDialogService adminDialogService,
-    IGetStatisticHandler getStatisticHandler,
-    IBroadcastService broadcastService,
-    
-    IOptions<BotConfiguration> options
-)
+public class TelegramBotService
 {
+    private readonly IUserRepository _userRepository;
+    private readonly IMessageRepository _messageRepository;
+    private readonly IBroadcastMessageRepository _broadcastMessageRepository;
+    private readonly IChatRepository _chatRepository;
+    private readonly IAdminDialogService _adminDialogService;
+    private readonly IGetStatisticHandler _getStatisticHandler;
+    private readonly IBroadcastService _broadcastService;
+    private readonly BotConfiguration _botConfiguration;
+    private readonly TelegramBotClient _botClient;
+
+    public TelegramBotService(
+        IUserRepository userRepository,
+        IMessageRepository messageRepository,
+        IBroadcastMessageRepository broadcastMessageRepository,
+        IChatRepository chatRepository,
+        IAdminDialogService adminDialogService,
+        IGetStatisticHandler getStatisticHandler,
+        IBroadcastService broadcastService,
+        IOptions<BotConfiguration> options)
+    {
+        _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _messageRepository = messageRepository ?? throw new ArgumentNullException(nameof(messageRepository));
+        _broadcastMessageRepository = broadcastMessageRepository ??
+                                      throw new ArgumentNullException(nameof(broadcastMessageRepository));
+        _chatRepository = chatRepository ?? throw new ArgumentNullException(nameof(chatRepository));
+        _adminDialogService = adminDialogService ?? throw new ArgumentNullException(nameof(adminDialogService));
+        _getStatisticHandler = getStatisticHandler ?? throw new ArgumentNullException(nameof(getStatisticHandler));
+        _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
+        _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _botClient = new TelegramBotClient(options.Value.Token);
+    }
+
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-        
-        
-        if (update.Message != null && update.Message.From != null && options.Value.AdminIds.Contains(update.Message.From.Id) && adminDialogService.IsInDialog(update.Message.From.Id))
+        if (update.Message != null && update.Message.From != null &&
+            _botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+            _adminDialogService.IsInDialog(update.Message.From.Id))
         {
             var adminId = update.Message.From.Id;
-            var currentState = adminDialogService.GetDialogState(adminId);
-        
+            var currentState = _adminDialogService.GetDialogState(adminId);
+
             switch (currentState)
             {
                 case AdminDialogState.ManagingWeeklyMessage:
                     await HandleWeeklyMessageActionAsync(update.Message, cancellationToken);
                     return;
-                
+
                 case AdminDialogState.WaitingForNewWeeklyMessage:
                     await HandleNewWeeklyMessageInputAsync(adminId, update.Message, cancellationToken);
                     return;
-                
+
                 case AdminDialogState.ManagingDailyMessage:
                     await HandleDailyMessageActionAsync(update.Message, cancellationToken);
                     return;
-                
+
                 case AdminDialogState.WaitingForNewDailyMessage:
                     await HandleNewDailyMessageInputAsync(adminId, update.Message, cancellationToken);
                     return;
-                
+
                 // Другие состояния...
             }
         }
-        
+
         if (update.Type == UpdateType.Message && update.Message.Type == MessageType.Document)
         {
             var fileId = update.Message.Document.FileId;
             await using var ms = new MemoryStream();
-            var tgFile = await botClient.GetInfoAndDownloadFile(fileId, ms);
-            
+            var tgFile = await _botClient.GetInfoAndDownloadFile(fileId, ms);
+
             var result = update.Message.Document.FileName!.ToLower() switch
             {
                 var name when name.EndsWith(".xlsx") => ParseExcel(ms, update.Message.From.Username),
                 _ => throw new Exception("Неподдерживаемый формат файла. Поддерживаются только CSV и XLSX.")
             };
-            
+
             if (result.Any())
             {
                 await WriteToGoogleSheets(result);
-                await botClient.SendMessage(update.Message.Chat.Id, 
+                await _botClient.SendMessage(update.Message.Chat.Id,
                     $"Данные записаны в Google Sheets", cancellationToken: cancellationToken);
             }
         }
-        
+
         if (update.Type == UpdateType.CallbackQuery)
         {
             var callbackData = update.CallbackQuery.Data;
@@ -100,32 +121,33 @@ public class TelegramBotService(
             if (callbackData.StartsWith("broadcast_chat"))
             {
                 var groupId = long.Parse(buttonInfo[1]);
-                var chat = await chatRepository.GetChatById(groupId, CancellationToken.None);
+                var chat = await _chatRepository.GetChatById(groupId, CancellationToken.None);
                 if (chat != null)
                 {
-                    await broadcastService.SelectChatAsync(update.CallbackQuery.From.Id, chat.Id, chat.Name);
+                    await _broadcastService.SelectChatAsync(update.CallbackQuery.From.Id, chat.Id, chat.Name);
                 }
-                await botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
+
+                await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
                 return;
             }
             else if (callbackData == "broadcast_cancel")
             {
-                await broadcastService.CancelBroadcastSessionAsync(update.CallbackQuery.From.Id);
-                await botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
+                await _broadcastService.CancelBroadcastSessionAsync(update.CallbackQuery.From.Id);
+                await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
                 return;
             }
-            
+
             switch (buttonInfo[0])
             {
                 case "user":
                 {
-                    await getStatisticHandler.SendUserStatistic(Int64.Parse(buttonInfo[1]),
+                    await _getStatisticHandler.SendUserStatistic(Int64.Parse(buttonInfo[1]),
                         update.CallbackQuery.Message.Chat.Id, cancellationToken);
                     break;
                 }
                 case "chat":
                 {
-                    await getStatisticHandler.SendChatStatistic(Int64.Parse(buttonInfo[1]),
+                    await _getStatisticHandler.SendChatStatistic(Int64.Parse(buttonInfo[1]),
                         update.CallbackQuery.Message.Chat.Id,
                         cancellationToken);
                     break;
@@ -140,14 +162,14 @@ public class TelegramBotService(
         var text = message.Text ?? string.Empty;
 
         if (telegramUserId == null) return;
-        
 
         if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
         {
-            var chatId = await chatRepository.GetOrCreateChat(message.Chat.Id, message.Chat.Title ?? "no name group", cancellationToken);
+            var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id, message.Chat.Title ?? "no name group",
+                cancellationToken);
             var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
 
-            await messageRepository.SaveMessageAsync(userId, text, chatId);
+            await _messageRepository.SaveMessageAsync(userId, text, chatId);
         }
         else
         {
@@ -156,17 +178,17 @@ public class TelegramBotService(
 
         if (message.Chat.Type is ChatType.Private)
         {
-            var adminIds = options.Value.AdminIds;
+            var adminIds = _botConfiguration.AdminIds;
             if (adminIds.Contains((long)message.From?.Id))
             {
                 // Проверяем активную сессию рассылки
-                var broadcastSession = broadcastService.GetSession((long)message.From?.Id);
+                var broadcastSession = _broadcastService.GetSession((long)message.From?.Id);
                 if (broadcastSession?.State == BroadcastState.WaitingForMessageText)
                 {
-                    await broadcastService.ProcessBroadcastMessageAsync((long)message.From?.Id, text);
+                    await _broadcastService.ProcessBroadcastMessageAsync((long)message.From?.Id, text);
                     return;
                 }
-                
+
                 await HandleAdminCommandAsync(message, text, cancellationToken);
             }
             else
@@ -178,9 +200,9 @@ public class TelegramBotService(
 
     private async Task<long> SaveOrUpdateUserAsync(User user, long? chatId, CancellationToken cancellationToken)
     {
-        var existingUser = await userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
+        var existingUser = await _userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
         long userId;
-        
+
         if (existingUser == null)
         {
             var newUser = new CreateUserRequest
@@ -188,29 +210,29 @@ public class TelegramBotService(
                 TelegramId = user.Id,
                 Username = user.Username,
             };
-            userId = await userRepository.CreateUser(newUser, cancellationToken);
+            userId = await _userRepository.CreateUser(newUser, cancellationToken);
         }
         else
         {
             userId = existingUser.Id;
         }
 
-        if (chatId != null && ((existingUser != null && !existingUser.ChatIds.Contains(chatId.Value)) || existingUser == null))
+        if (chatId != null && ((existingUser != null && !existingUser.ChatIds.Contains(chatId.Value)) ||
+                               existingUser == null))
         {
-            await chatRepository.ConnectUserToChat(userId, chatId.Value);
+            await _chatRepository.ConnectUserToChat(userId, chatId.Value);
         }
-        
+
         return userId;
     }
 
     private async Task HandleAdminCommandAsync(Message message, string command, CancellationToken cancellationToken)
     {
-        var adminIds = options.Value.AdminIds;
-        var botClient = new TelegramBotClient(options.Value.Token);
+        var adminIds = _botConfiguration.AdminIds;
 
         if (!adminIds.Contains((long)message.From?.Id))
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "Команда доступна только администратору",
                 cancellationToken: cancellationToken);
@@ -226,7 +248,7 @@ public class TelegramBotService(
                 await SendHelpMessage(message, cancellationToken);
                 break;
             case "/sendmessage": //команда для интерактивной рассылки
-                await broadcastService.StartBroadcastSessionAsync((long)message.From?.Id);
+                await _broadcastService.StartBroadcastSessionAsync((long)message.From?.Id);
                 break;
             case "/getstatisticbychatid": //команда для получения статистики по выбранному чату
                 await HandleGetStatisticByChatIdCommandAsync(message, cancellationToken);
@@ -269,18 +291,17 @@ public class TelegramBotService(
 
     private async Task SendHelpMessage(Message message, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             "С помощью этого бота вы можете загрузить свои предложения о продаже контейнеров для наших администраторов. " +
             "Для этого отправьте Excel документ заполненный по шаблону в бота");
 
         string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
-        
+
         // Проверяем существование файла
         if (!File.Exists(filePath))
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "ℹ️ Подробная инструкция временно недоступна. " +
                 "Обратитесь к администратору для получения руководства.",
@@ -291,8 +312,8 @@ public class TelegramBotService(
 
         // Отправляем документ
         using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        
-        await botClient.SendDocument(
+
+        await _botClient.SendDocument(
             chatId: message.Chat.Id,
             document: new InputFileStream(fileStream, Path.GetFileName(filePath)),
             caption: "📎 Образец предложений о продаже контейнеров",
@@ -303,8 +324,7 @@ public class TelegramBotService(
 
     private async Task SendBroadcastInstructionsAsync(long chatId)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             chatId,
             "Для рассылки сообщения всем пользователям используйте команду:\n" +
             "/broadcast ваш_текст_сообщения");
@@ -313,15 +333,13 @@ public class TelegramBotService(
     private async Task HandleBroadcastAsync(Message message, string broadcastText,
         CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         if (string.IsNullOrWhiteSpace(broadcastText))
         {
-            await botClient.SendMessage(message.Chat.Id, "Текст рассылки не может быть пустым.");
+            await _botClient.SendMessage(message.Chat.Id, "Текст рассылки не может быть пустым.");
             return;
         }
 
-        var users = await userRepository.GetUserList(new GetUserListRequest
+        var users = await _userRepository.GetUserList(new GetUserListRequest
         {
             OnlyActive = true
         }, cancellationToken);
@@ -331,7 +349,7 @@ public class TelegramBotService(
         {
             try
             {
-                await botClient.SendMessage(user.TelegramId, broadcastText);
+                await _botClient.SendMessage(user.TelegramId, broadcastText);
                 successCount++;
                 await Task.Delay(50); // Задержка чтобы не превысить лимиты Telegram
             }
@@ -342,18 +360,16 @@ public class TelegramBotService(
             }
         }
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             $"Рассылка завершена. Успешно отправлено: {successCount} из {users.Count} пользователей.");
     }
 
     private async Task HandleSetWeeklyMessageAsync(global::Telegram.Bot.Types.Message message, string weeklyMessage)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         if (string.IsNullOrWhiteSpace(weeklyMessage))
         {
-            await botClient.SendMessage(message.Chat.Id, "Текст еженедельного сообщения не может быть пустым.");
+            await _botClient.SendMessage(message.Chat.Id, "Текст еженедельного сообщения не может быть пустым.");
             return;
         }
 
@@ -363,21 +379,21 @@ public class TelegramBotService(
             PeriodType = BroadcastMessagePeriodType.Weekly
         };
 
-        await broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, CancellationToken.None);
+        await _broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, CancellationToken.None);
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             "Еженедельное сообщение установлено!");
     }
 
     public async Task SendWeeklyBroadcastAsync(CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
-        var weeklyMessage = await broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Weekly, cancellationToken);
+        var weeklyMessage =
+            await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Weekly,
+                cancellationToken);
         if (weeklyMessage == null) return;
 
-        var users = await userRepository.GetUserList(new GetUserListRequest
+        var users = await _userRepository.GetUserList(new GetUserListRequest
         {
             OnlyActive = true
         }, cancellationToken);
@@ -386,7 +402,7 @@ public class TelegramBotService(
         {
             try
             {
-                await botClient.SendMessage(user.TelegramId, weeklyMessage.Message);
+                await _botClient.SendMessage(user.TelegramId, weeklyMessage.Message);
                 await Task.Delay(50);
             }
             catch (Exception ex)
@@ -398,14 +414,12 @@ public class TelegramBotService(
 
     private async Task HandleGetStatisticByChatIdCommandAsync(Message message, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-        
         // Получаем список всех чатов
-        var chats = await chatRepository.GetChatLists(cancellationToken);
+        var chats = await _chatRepository.GetChatLists(cancellationToken);
 
         if (!chats.Any())
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "В базе данных нет чатов для отображения.",
                 cancellationToken: cancellationToken);
@@ -422,7 +436,7 @@ public class TelegramBotService(
 
         var buttons = SplitArray(chats.Select(x => new InlineKeyboardButton(x.ChatName, $"chat {x.ChatId}")).ToArray());
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             chatList,
             replyMarkup: buttons,
@@ -431,19 +445,17 @@ public class TelegramBotService(
 
     private async Task HandleGetStatisticByUserIdCommandAsync(Message message, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         var adminId = message.From.Id;
 
         // Получаем список всех пользователей
-        var users = await userRepository.GetUserList(new GetUserListRequest()
+        var users = await _userRepository.GetUserList(new GetUserListRequest()
         {
             OnlyActive = true
         }, cancellationToken);
 
         if (!users.Any())
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "В базе данных нет пользователей для отображения.",
                 cancellationToken: cancellationToken);
@@ -461,7 +473,7 @@ public class TelegramBotService(
         userList += "Введите ID пользователя для получения статистики:";
 
         var buttons = SplitArray(users.Select(x => new InlineKeyboardButton(x.Username, $"user {x.Id}")).ToArray());
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             userList,
             replyMarkup: buttons,
@@ -492,12 +504,10 @@ public class TelegramBotService(
 
     private async Task HandleSetWeeklyMessageCommandAsync(Message message, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         var adminId = message.From.Id;
 
         // Получаем текущее сообщение
-        var currentMessage = await broadcastMessageRepository.GetActiveBroadcastMessage(
+        var currentMessage = await _broadcastMessageRepository.GetActiveBroadcastMessage(
             BroadcastMessagePeriodType.Weekly,
             cancellationToken
         );
@@ -518,25 +528,25 @@ public class TelegramBotService(
             OneTimeKeyboard = true
         };
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             chatId: message.Chat.Id,
             text: response,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken
         );
-        
-        adminDialogService.SetDialogData(adminId, "CurrentMessage", currentMessageText);
-        adminDialogService.SetDialogState(adminId, AdminDialogState.ManagingWeeklyMessage);
+
+        _adminDialogService.SetDialogData(adminId, "CurrentMessage", currentMessageText);
+        _adminDialogService.SetDialogState(adminId, AdminDialogState.ManagingWeeklyMessage);
     }
 
     private async Task HandleSetDailyMessageCommandAsync(Message message, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         var adminId = message.From.Id;
 
         // Получаем текущее еженедельное сообщение
-        var currentMessage = await broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily, cancellationToken);
+        var currentMessage =
+            await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily,
+                cancellationToken);
         var currentMessageText = currentMessage?.Message ?? "Не установлено";
 
         var response = $"Текущее еженедельное сообщение:\n\n{currentMessageText}\n\n";
@@ -556,52 +566,51 @@ public class TelegramBotService(
             OneTimeKeyboard = true
         };
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             response,
             replyMarkup: keyboard,
             cancellationToken: cancellationToken);
 
-        adminDialogService.StartDailyMessageDialog(adminId);
-        adminDialogService.SetDialogData(adminId, "CurrentMessage", currentMessageText);
+        _adminDialogService.StartDailyMessageDialog(adminId);
+        _adminDialogService.SetDialogData(adminId, "CurrentMessage", currentMessageText);
     }
 
     private async Task HandleWeeklyMessageActionAsync(Message message,
         CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
         var adminId = message.From.Id;
         var action = message.Text;
-        var currentMessage = adminDialogService.GetDialogData<string>(adminId, "CurrentMessage");
+        var currentMessage = _adminDialogService.GetDialogData<string>(adminId, "CurrentMessage");
 
         if (action == "Оставить как есть")
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✅ Еженедельное сообщение осталось без изменений",
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: cancellationToken
             );
-            adminDialogService.CompleteDialog(adminId);
+            _adminDialogService.CompleteDialog(adminId);
             return;
         }
 
         if (action == "Изменить сообщение")
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✏️ Введите новое текст сообщения (максимум 4096 символов):",
                 replyMarkup: new ReplyKeyboardRemove(), // Убираем клавиатуру
                 cancellationToken: cancellationToken
             );
-        
+
             // Переходим к следующему состоянию
-            adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewWeeklyMessage);
+            _adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewWeeklyMessage);
             return;
         }
-        
-        adminDialogService.SetDialogState(adminId, AdminDialogState.None);
-        await botClient.SendMessage(
+
+        _adminDialogService.SetDialogState(adminId, AdminDialogState.None);
+        await _botClient.SendMessage(
             chatId: message.Chat.Id,
             text: "❌ Неизвестное действие. Пожалуйста, выберите из предложенных вариантов.",
             cancellationToken: cancellationToken
@@ -611,13 +620,11 @@ public class TelegramBotService(
     private async Task HandleNewWeeklyMessageInputAsync(long adminId, Message message,
         CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         var newMessage = message.Text;
 
         if (string.IsNullOrWhiteSpace(newMessage))
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "Сообщение не может быть пустым. Введите новое еженедельное сообщение:",
                 cancellationToken: cancellationToken);
@@ -631,68 +638,65 @@ public class TelegramBotService(
             PeriodType = BroadcastMessagePeriodType.Weekly
         };
 
-        await broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, cancellationToken);
+        await _broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, cancellationToken);
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             "Еженедельное сообщение успешно обновлено.",
             cancellationToken: cancellationToken);
 
-        adminDialogService.CompleteDialog(adminId);
+        _adminDialogService.CompleteDialog(adminId);
     }
-    
+
     private async Task HandleDailyMessageActionAsync(Message message,
         CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
         var adminId = message.From.Id;
         var action = message.Text;
-        var currentMessage = adminDialogService.GetDialogData<string>(adminId, "CurrentMessage");
+        var currentMessage = _adminDialogService.GetDialogData<string>(adminId, "CurrentMessage");
 
         if (action == "Оставить как есть")
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✅ Ежедневное сообщение осталось без изменений",
                 replyMarkup: new ReplyKeyboardRemove(),
                 cancellationToken: cancellationToken
             );
-            adminDialogService.CompleteDialog(adminId);
+            _adminDialogService.CompleteDialog(adminId);
             return;
         }
 
         if (action == "Изменить")
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✏️ Введите новое текст сообщения (максимум 4096 символов):",
                 replyMarkup: new ReplyKeyboardRemove(), // Убираем клавиатуру
                 cancellationToken: cancellationToken
             );
-        
+
             // Переходим к следующему состоянию
-            adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewDailyMessage);
+            _adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewDailyMessage);
             return;
         }
-        
-        adminDialogService.SetDialogState(adminId, AdminDialogState.None);
-        await botClient.SendMessage(
+
+        _adminDialogService.SetDialogState(adminId, AdminDialogState.None);
+        await _botClient.SendMessage(
             chatId: message.Chat.Id,
             text: "❌ Неизвестное действие. Пожалуйста, выберите из предложенных вариантов.",
             cancellationToken: cancellationToken
         );
     }
-    
+
     private async Task HandleNewDailyMessageInputAsync(long adminId, Message message,
         CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
-
         var newMessage = message.Text;
 
         if (string.IsNullOrWhiteSpace(newMessage))
         {
-            await botClient.SendMessage(
+            await _botClient.SendMessage(
                 message.Chat.Id,
                 "Сообщение не может быть пустым. Введите новое еженедельное сообщение:",
                 cancellationToken: cancellationToken);
@@ -706,20 +710,20 @@ public class TelegramBotService(
             PeriodType = BroadcastMessagePeriodType.Daily
         };
 
-        await broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, cancellationToken);
+        await _broadcastMessageRepository.CreateBroadcastMessage(broadcastMessage, cancellationToken);
 
-        await botClient.SendMessage(
+        await _botClient.SendMessage(
             message.Chat.Id,
             "Ежедневное сообщение успешно обновлено.",
             cancellationToken: cancellationToken);
 
-        adminDialogService.CompleteDialog(adminId);
+        _adminDialogService.CompleteDialog(adminId);
     }
-    
+
     private List<ContainerRequestModel> ParseExcel(Stream stream, string username)
     {
         var result = new List<ContainerRequestModel>();
-        
+
         try
         {
             using var workbook = new XLWorkbook(stream);
@@ -729,34 +733,34 @@ public class TelegramBotService(
             var rowNumber = 2; // Начинаем с строки 2 (после заголовка)
             foreach (var row in rows)
             {
-                    var model = new ContainerRequestModel
-                    {
-                        Size = row.Cell(1).Value.ToString()?.Trim() ?? "", // A
-                        Type = row.Cell(2).Value.ToString()?.Trim() ?? "", // B
-                        Condition = row.Cell(3).Value.ToString()?.Trim() ?? "", // C
-                        City = row.Cell(4).Value.ToString()?.Trim() ?? "", // D
-                        Availability = row.Cell(5).Value.ToString()?.Trim() ?? "", // E
-                        PriceWithTax = decimal.Parse(row.Cell(6).Value.ToString()?.Trim() ?? String.Empty), // D
-                        PriceWithoutTax = decimal.Parse(row.Cell(7).Value.ToString()?.Trim() ?? String.Empty), // G
-                        Currency = row.Cell(8).Value.ToString()?.Trim() ?? "", // H
-                        TransactionType = row.Cell(9).Value.ToString()?.Trim() ?? "", // I
-                        Date = DateTimeOffset.UtcNow,
-                        Username = $"@{username}"
-                    };
+                var model = new ContainerRequestModel
+                {
+                    Size = row.Cell(1).Value.ToString()?.Trim() ?? "", // A
+                    Type = row.Cell(2).Value.ToString()?.Trim() ?? "", // B
+                    Condition = row.Cell(3).Value.ToString()?.Trim() ?? "", // C
+                    City = row.Cell(4).Value.ToString()?.Trim() ?? "", // D
+                    Availability = row.Cell(5).Value.ToString()?.Trim() ?? "", // E
+                    PriceWithTax = decimal.Parse(row.Cell(6).Value.ToString()?.Trim() ?? String.Empty), // D
+                    PriceWithoutTax = decimal.Parse(row.Cell(7).Value.ToString()?.Trim() ?? String.Empty), // G
+                    Currency = row.Cell(8).Value.ToString()?.Trim() ?? "", // H
+                    TransactionType = row.Cell(9).Value.ToString()?.Trim() ?? "", // I
+                    Date = DateTimeOffset.UtcNow,
+                    Username = $"@{username}"
+                };
 
-                    // Валидация обязательных полей
-                    if (string.IsNullOrWhiteSpace(model.Size) ||
-                        string.IsNullOrWhiteSpace(model.Type) ||
-                        string.IsNullOrWhiteSpace(model.City) ||
-                        string.IsNullOrWhiteSpace(model.Username))
-                    {
-                        rowNumber++;
-                        continue;
-                    }
+                // Валидация обязательных полей
+                if (string.IsNullOrWhiteSpace(model.Size) ||
+                    string.IsNullOrWhiteSpace(model.Type) ||
+                    string.IsNullOrWhiteSpace(model.City) ||
+                    string.IsNullOrWhiteSpace(model.Username))
+                {
+                    rowNumber++;
+                    continue;
+                }
 
-                    result.Add(model);
-                
-                
+                result.Add(model);
+
+
                 rowNumber++;
             }
         }
@@ -767,12 +771,12 @@ public class TelegramBotService(
 
         return result;
     }
-    
+
     private async Task WriteToGoogleSheets(List<ContainerRequestModel> models)
     {
-        var credential = GoogleCredential.FromJson(options.Value.GoogleAuth.Key)
+        var credential = GoogleCredential.FromJson(_botConfiguration.GoogleAuth.Key)
             .CreateScoped(SheetsService.Scope.Spreadsheets);
-        
+
         // Пример инициализации сервиса (в конструкторе)
         var sheetsService = new SheetsService(new BaseClientService.Initializer()
         {
@@ -780,84 +784,89 @@ public class TelegramBotService(
             ApplicationName = "ContainerFather.Bot",
         });
         var spreadsheetId = "1Q4aHnNPNFXxlwTxRNJk9IUf1m6V2wWV1HTc3rnu-ZbE"; // ID таблицы из URL
-    // Проверка входных данных
-    if (models == null || models.Count == 0)
-    {
-        Console.WriteLine("Попытка записи пустого списка данных в Google Таблицу");
-        return;
-    }
-
-    try
-    {
-        // Преобразуем модели в данные для Google Sheets
-        var values = new List<IList<object>>();
-        
-        foreach (var model in models)
+        // Проверка входных данных
+        if (models == null || models.Count == 0)
         {
-            // Безопасное форматирование даты с обработкой null
-            string formattedDate = model.Date.ToString("dd.MM.yyyy HH:mm");
-
-            var row = new List<object>
-            {
-                model.Size,
-                model.Type,
-                model.Condition ?? string.Empty,
-                model.City,
-                formattedDate,
-                model.Username?.Trim() ?? string.Empty,
-                model.Availability ?? string.Empty,
-                model.PriceWithTax.HasValue ? model.PriceWithTax.Value : string.Empty, // Форматирование цены как валюты
-                model.PriceWithoutTax.HasValue ? model.PriceWithoutTax.Value : string.Empty,
-                model.Currency,
-                model.TransactionType,
-            };
-            values.Add(row);
+            Console.WriteLine("Попытка записи пустого списка данных в Google Таблицу");
+            return;
         }
 
-        // Динамическое определение диапазона
-        var range = $"A2:K{values.Count + 1}";
-
-        var valueRange = new ValueRange
+        try
         {
-            Values = values
-        };
+            // Преобразуем модели в данные для Google Sheets
+            var values = new List<IList<object>>();
 
-        // 3. Используем Append вместо Update
-        var appendRequest = sheetsService.Spreadsheets.Values.Append(
-            valueRange, 
-            spreadsheetId, 
-            range
-        );
-        
-        // Важные настройки для корректной работы
-        appendRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
-        appendRequest.InsertDataOption = SpreadsheetsResource.ValuesResource.AppendRequest.InsertDataOptionEnum.INSERTROWS; // ← Добавлять новые строки
-        appendRequest.IncludeValuesInResponse = true; // Для получения информации о результате
+            foreach (var model in models)
+            {
+                // Безопасное форматирование даты с обработкой null
+                string formattedDate = model.Date.ToString("dd.MM.yyyy HH:mm");
 
-        // Выполнение запроса с таймаутом
-        var response = await appendRequest.ExecuteAsync();
-        
-        Console.WriteLine($"Успешно записано {response.Updates.UpdatedRows} строк в Google Таблицу");
+                var row = new List<object>
+                {
+                    model.Size,
+                    model.Type,
+                    model.Condition ?? string.Empty,
+                    model.City,
+                    formattedDate,
+                    model.Username?.Trim() ?? string.Empty,
+                    model.Availability ?? string.Empty,
+                    model.PriceWithTax.HasValue
+                        ? model.PriceWithTax.Value
+                        : string.Empty, // Форматирование цены как валюты
+                    model.PriceWithoutTax.HasValue ? model.PriceWithoutTax.Value : string.Empty,
+                    model.Currency,
+                    model.TransactionType,
+                };
+                values.Add(row);
+            }
+
+            // Динамическое определение диапазона
+            var range = $"A2:K{values.Count + 1}";
+
+            var valueRange = new ValueRange
+            {
+                Values = values
+            };
+
+            // 3. Используем Append вместо Update
+            var appendRequest = sheetsService.Spreadsheets.Values.Append(
+                valueRange,
+                spreadsheetId,
+                range
+            );
+
+            // Важные настройки для корректной работы
+            appendRequest.ValueInputOption =
+                SpreadsheetsResource.ValuesResource.AppendRequest.ValueInputOptionEnum.USERENTERED;
+            appendRequest.InsertDataOption =
+                SpreadsheetsResource.ValuesResource.AppendRequest.InsertDataOptionEnum
+                    .INSERTROWS; // ← Добавлять новые строки
+            appendRequest.IncludeValuesInResponse = true; // Для получения информации о результате
+
+            // Выполнение запроса с таймаутом
+            var response = await appendRequest.ExecuteAsync();
+
+            Console.WriteLine($"Успешно записано {response.Updates.UpdatedRows} строк в Google Таблицу");
+        }
+        catch (Google.GoogleApiException ex) when (ex.Error.Code == 403)
+        {
+            Console.WriteLine("Ошибка доступа к Google Таблице: Проверьте права доступа сервисного аккаунта");
+            throw new ApplicationException("Недостаточно прав для записи в таблицу", ex);
+        }
+        catch (Google.GoogleApiException ex) when (ex.Error.Code == 404)
+        {
+            Console.WriteLine($"Таблица с ID {spreadsheetId} не найдена");
+            throw new ApplicationException("Целевая таблица не существует", ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            Console.WriteLine("Таймаут операции записи в Google Таблицу");
+            throw new TimeoutException("Превышено время ожидания ответа от Google API", ex);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Критическая ошибка при записи в Google Таблицу: {ex.Message}");
+            throw;
+        }
     }
-    catch (Google.GoogleApiException ex) when (ex.Error.Code == 403)
-    {
-        Console.WriteLine("Ошибка доступа к Google Таблице: Проверьте права доступа сервисного аккаунта");
-        throw new ApplicationException("Недостаточно прав для записи в таблицу", ex);
-    }
-    catch (Google.GoogleApiException ex) when (ex.Error.Code == 404)
-    {
-        Console.WriteLine($"Таблица с ID {spreadsheetId} не найдена");
-        throw new ApplicationException("Целевая таблица не существует", ex);
-    }
-    catch (TaskCanceledException ex)
-    {
-        Console.WriteLine("Таймаут операции записи в Google Таблицу");
-        throw new TimeoutException("Превышено время ожидания ответа от Google API", ex);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Критическая ошибка при записи в Google Таблицу: {ex.Message}");
-        throw;
-    }
-}
 }

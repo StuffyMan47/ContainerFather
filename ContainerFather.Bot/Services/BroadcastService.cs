@@ -162,7 +162,7 @@ public class BroadcastService : IBroadcastService
     private InlineKeyboardMarkup CreateChatSelectionKeyboard(List<GetChatListResponse> chats)
     {
         var buttons = chats.Select(chat =>
-            new[] { InlineKeyboardButton.WithCallbackData(chat.ChatName, $"broadcast_chat{chat.ChatId}") }
+            new[] { InlineKeyboardButton.WithCallbackData(chat.ChatName, $"broadcast_chat {chat.ChatId}") }
         ).ToList();
 
         // Добавляем кнопку отмены
