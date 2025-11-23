@@ -8,10 +8,10 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 ENV DOTNET_NUGET_SIGNATURE_VERIFICATION=false
 WORKDIR /src
-COPY ["ContainerFather.API/ContainerFather.API.csproj", "ContainerFather.API/"]
-COPY ["ContainerFather.Bot/ContainerFather.Bot.csproj", "ContainerFather.Bot/"]
-COPY ["ContainerFather.Core/ContainerFather.Core.csproj", "ContainerFather.Core/"]
-COPY ["ContainerFather.Infrastructure/ContainerFather.Infrastructure.csproj", "ContainerFather.Infrastructure/"]
+COPY ["ContainerFather/ContainerFather.API/ContainerFather.API.csproj", "ContainerFather.API/"]
+COPY ["ContainerFather/ContainerFather.Bot/ContainerFather.Bot.csproj", "ContainerFather.Bot/"]
+COPY ["ContainerFather/ContainerFather.Core/ContainerFather.Core.csproj", "ContainerFather.Core/"]
+COPY ["ContainerFather/ContainerFather.Infrastructure/ContainerFather.Infrastructure.csproj", "ContainerFather.Infrastructure/"]
 RUN dotnet restore "ContainerFather.API/ContainerFather.API.csproj"
 COPY . .
 WORKDIR "/src/ContainerFather.API"
