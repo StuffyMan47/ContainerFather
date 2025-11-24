@@ -54,7 +54,7 @@ internal static class Startup
         recurringJobManager.AddOrUpdate<SendDailyMessageJob>(
             "daily-message",
             service => service.Execute(),
-            Cron.Daily(hour: 9)
+            Cron.Daily(hour: 6)
         );
         
         recurringJobManager.RemoveIfExists("weekly-message");

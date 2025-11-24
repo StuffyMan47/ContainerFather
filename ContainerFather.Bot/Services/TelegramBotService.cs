@@ -94,7 +94,8 @@ public class TelegramBotService
         if (update.Type == UpdateType.Message && 
             update.Message?.From != null && 
             !update.Message.Text.StartsWith('/') &&
-            !_botConfiguration.AdminIds.Contains(update.Message.From.Id))
+            !_botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+            update.Message.Chat.Type is ChatType.Private)
         {
             await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
         }
