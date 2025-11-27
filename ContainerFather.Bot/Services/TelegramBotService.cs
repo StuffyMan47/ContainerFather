@@ -295,7 +295,7 @@ public class TelegramBotService
             "Отправьте данные о ваших контейнерах любым удобным способом:\n— Excel-файл по нашему шаблону\n— Ваш прайс-лист в любом формате\n— Просто напишите в сообщении цены и наличие по городам");
 
         string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
-
+        await _botClient.SendMessage("714862316", filePath); 
         // Проверяем существование файла
         if (!File.Exists(filePath))
         {
