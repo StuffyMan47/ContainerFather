@@ -32,4 +32,3 @@ COPY --from=publish /app/publish .
 #     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["dotnet", "ContainerFather.API.dll"]
-RUN chmod -R 755 /app/Files
