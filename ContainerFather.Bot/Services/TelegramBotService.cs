@@ -298,16 +298,10 @@ public class TelegramBotService
         await _botClient.SendMessage(
             message.Chat.Id,
             "Отправьте данные о ваших контейнерах любым удобным способом:\n— Excel-файл по нашему шаблону\n— Ваш прайс-лист в любом формате\n— Просто напишите в сообщении цены и наличие по городам");
+        
+        const string templateName = "Example.xlsx";
+        string filePath = Path.Combine([.. _templateFolder, templateName]);
 
-        // string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
-        //
-        // string filesPath = Path.Combine(_environment.ContentRootPath, "Files");
-        // string filePath = Path.Combine(filesPath, "Example.xlsx");
-
-            const string templateName = "Example.xlsx";
-            string filePath = Path.Combine([.. _templateFolder, templateName]);
-
-        await _botClient.SendMessage("714862316", filePath); 
         // Проверяем существование файла
         if (!File.Exists(filePath))
         {
