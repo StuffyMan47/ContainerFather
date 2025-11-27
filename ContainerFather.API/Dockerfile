@@ -14,6 +14,7 @@ COPY ["ContainerFather.Core/ContainerFather.Core.csproj", "ContainerFather.Core/
 COPY ["ContainerFather.Infrastructure/ContainerFather.Infrastructure.csproj", "ContainerFather.Infrastructure/"]
 RUN dotnet restore "ContainerFather.API/ContainerFather.API.csproj"
 COPY . .
+COPY ContainerFather.API/Files ./Files/
 WORKDIR "/src/ContainerFather.API"
 RUN dotnet build "ContainerFather.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
@@ -31,3 +32,4 @@ COPY --from=publish /app/publish .
 #     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["dotnet", "ContainerFather.API.dll"]
+RUN chmod -R 755 /app/Files
