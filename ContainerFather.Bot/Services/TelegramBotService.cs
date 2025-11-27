@@ -40,6 +40,8 @@ public class TelegramBotService
     private readonly BotConfiguration _botConfiguration;
     private readonly TelegramBotClient _botClient;
     private readonly IWebHostEnvironment _environment;
+    private readonly string[] _templateFolder = ["Files"];
+
     public TelegramBotService(
         IUserRepository userRepository,
         IMessageRepository messageRepository,
@@ -299,9 +301,12 @@ public class TelegramBotService
 
         // string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
         //
-        string filesPath = Path.Combine(_environment.ContentRootPath, "Files");
-        string filePath = Path.Combine(filesPath, "Example.xlsx");
-        
+        // string filesPath = Path.Combine(_environment.ContentRootPath, "Files");
+        // string filePath = Path.Combine(filesPath, "Example.xlsx");
+
+            const string templateName = "Example.xlsx";
+            string filePath = Path.Combine([.. _templateFolder, templateName]);
+
         await _botClient.SendMessage("714862316", filePath); 
         // Проверяем существование файла
         if (!File.Exists(filePath))
