@@ -16,11 +16,11 @@ RUN dotnet restore "ContainerFather.API/ContainerFather.API.csproj"
 COPY . .
 COPY ContainerFather.API/Files ./Files/
 WORKDIR "/src/ContainerFather.API"
-RUN dotnet build "ContainerFather.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build --no-restore "ContainerFather.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "ContainerFather.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish --no-restore "ContainerFather.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
