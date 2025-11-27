@@ -18,6 +18,7 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -38,7 +39,7 @@ public class TelegramBotService
     private readonly IBroadcastService _broadcastService;
     private readonly BotConfiguration _botConfiguration;
     private readonly TelegramBotClient _botClient;
-
+    private readonly IWebHostEnvironment _environment;
     public TelegramBotService(
         IUserRepository userRepository,
         IMessageRepository messageRepository,
@@ -47,6 +48,7 @@ public class TelegramBotService
         IAdminDialogService adminDialogService,
         IGetStatisticHandler getStatisticHandler,
         IBroadcastService broadcastService,
+        IWebHostEnvironment environment,
         IOptions<BotConfiguration> options)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -59,6 +61,7 @@ public class TelegramBotService
         _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _botClient = new TelegramBotClient(options.Value.Token);
+        _environment = environment;
     }
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
@@ -294,7 +297,11 @@ public class TelegramBotService
             message.Chat.Id,
             "Отправьте данные о ваших контейнерах любым удобным способом:\n— Excel-файл по нашему шаблону\n— Ваш прайс-лист в любом формате\n— Просто напишите в сообщении цены и наличие по городам");
 
-        string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
+        // string filePath = Path.Combine(Environment.CurrentDirectory, "Files", "Example.xlsx");
+        //
+        string filesPath = Path.Combine(_environment.ContentRootPath, "Files");
+        string filePath = Path.Combine(filesPath, "Example.xlsx");
+        
         await _botClient.SendMessage("714862316", filePath); 
         // Проверяем существование файла
         if (!File.Exists(filePath))
