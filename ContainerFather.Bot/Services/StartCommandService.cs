@@ -48,6 +48,7 @@ public class StartCommandService : IStartCommandService
                 new() { Command = "getstatisticbyuserid", Description = "Статистика по пользователю" },
                 new() { Command = "setweeklymessage", Description = "Установить еженедельное сообщение подписчикам" },
                 new() { Command = "setdailymessage", Description = "Установить ежедневное сообщение для группы" },
+                new() {Command = "getsubscribers", Description = "Посмотреть кто подписан на бота и получает рассылку"}
             };
 
             foreach (var adminId in _options.Value.AdminIds)

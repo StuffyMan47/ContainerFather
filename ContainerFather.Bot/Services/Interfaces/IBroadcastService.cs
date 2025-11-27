@@ -11,4 +11,6 @@ public interface IBroadcastService
     BroadcastSession? GetSession(long userId);
     Task SendWeeklyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken);
     Task SendDailyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken);
+    Task SendBroadcastMessageForAllAsync(long userId, string messageText);
+    Task EnterMessage(long userId);
 }

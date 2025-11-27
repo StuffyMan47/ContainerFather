@@ -7,6 +7,7 @@ using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Models;
 using ContainerFather.Core.UseCases.Users.Interfaces;
+using ContainerFather.Core.UseCases.Users.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -66,6 +67,22 @@ public class BroadcastService : IBroadcastService
         }
     }
 
+    public async Task EnterMessage(long userId)
+    {
+        if (_sessions.TryGetValue(userId, out var session))
+        {
+            session.SelectedChatId = null;
+            session.SelectedChatName = null;
+            session.State = BroadcastState.WaitingForMessageTextForAll;
+
+            await _botClient.SendMessage(
+                chatId: userId,
+                text: $"✅ Выбраны все чаты\n\n📝 Введите текст сообщения для рассылки:",
+                replyMarkup: new ReplyKeyboardRemove()
+            );
+        }
+    }
+
     public async Task SelectChatAsync(long userId, long chatId, string chatName)
     {
         if (_sessions.TryGetValue(userId, out var session))
@@ -79,6 +96,72 @@ public class BroadcastService : IBroadcastService
                 text: $"✅ Выбран чат: {chatName}\n\n📝 Введите текст сообщения для рассылки:",
                 replyMarkup: new ReplyKeyboardRemove()
             );
+        }
+    }
+
+    public async Task SendBroadcastMessageForAllAsync(long userId, string messageText)
+    {
+        if (!_sessions.TryGetValue(userId, out var session) || session.SelectedChatId != null)
+        {
+            await _botClient.SendMessage(userId,
+                "❌ Сессия рассылки не найдена. Начните заново с /sendMessage");
+            return;
+        }
+
+        try
+        {
+            var memberIds = await _userRepository.GetUserList(new GetUserListRequest
+            {
+                UserType = UserType.BotUser,
+                OnlyActive = true
+            }, CancellationToken.None);
+            
+            var sentCount = 0;
+            var failedCount = 0;
+
+            // Отправка сообщения о начале рассылки
+            await _botClient.SendMessage(
+                userId,
+                $"🚀 Начинаем рассылку в чат {session.SelectedChatName}...\nПолучателей: {memberIds.Count}"
+            );
+
+
+            // Рассылка каждому пользователю
+            foreach (var member in memberIds)
+            {
+                try
+                {
+                    await _botClient.SendMessage(
+                        member.TelegramId,
+                        text: messageText,
+                        disableNotification: false
+                    );
+                    sentCount++;
+                    await Task.Delay(50); // Задержка чтобы не превысить лимиты Telegram
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Не удалось отправить сообщение пользователю {UserId}", member.TelegramId);
+                    failedCount++;
+                }
+            }
+
+            // Отчет о результатах
+            await _botClient.SendMessage(
+                userId,
+                $"📊 Рассылка завершена!\n\n" +
+                $"✅ Успешно: {sentCount}\n" +
+                $"❌ Ошибок: {failedCount}\n"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при выполнении рассылки");
+            await _botClient.SendMessage(userId, "❌ Произошла ошибка при рассылке");
+        }
+        finally
+        {
+            _sessions.Remove(userId);
         }
     }
 
@@ -164,7 +247,10 @@ public class BroadcastService : IBroadcastService
         var buttons = chats.Select(chat =>
             new[] { InlineKeyboardButton.WithCallbackData(chat.ChatName, $"broadcast_chat {chat.ChatId}") }
         ).ToList();
-
+        
+        // добавляю кнопку отправить всем подписчикам
+        buttons.Add(new [] {InlineKeyboardButton.WithCallbackData("Отправить всем подписчикам бота", "broadcast_all")});
+        
         // Добавляем кнопку отмены
         buttons.Add(new[] { InlineKeyboardButton.WithCallbackData("❌ Отмена", "broadcast_cancel") });
 

@@ -2,7 +2,6 @@ namespace ContainerFather.Core.Enums;
 
 public enum UserType
 {
-    Average = 1,
-    Admin = 2,
-    Tester = 3
+    Subscriber = 1,
+    BotUser = 2,
 }

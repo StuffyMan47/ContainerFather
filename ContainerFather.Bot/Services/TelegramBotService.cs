@@ -129,6 +129,10 @@ public class TelegramBotService
                 await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
                 return;
             }
+            else if (callbackData == "broadcast_all")
+            {
+                await _broadcastService.EnterMessage(update.CallbackQuery.From.Id);
+            }
             else if (callbackData == "broadcast_cancel")
             {
                 await _broadcastService.CancelBroadcastSessionAsync(update.CallbackQuery.From.Id);
@@ -187,6 +191,11 @@ public class TelegramBotService
                     await _broadcastService.ProcessBroadcastMessageAsync((long)message.From?.Id, text);
                     return;
                 }
+                else if (broadcastSession?.State == BroadcastState.WaitingForMessageTextForAll)
+                {
+                    await _broadcastService.SendBroadcastMessageForAllAsync((long)message.From?.Id, text);
+                    return;
+                }
 
                 await HandleAdminCommandAsync(message, text, cancellationToken);
             }
@@ -197,7 +206,12 @@ public class TelegramBotService
         }
     }
 
-    private async Task<long> SaveOrUpdateUserAsync(User user, long? chatId, CancellationToken cancellationToken)
+    private async Task<long> SaveOrUpdateUserAsync(
+        User user, 
+        long? chatId, 
+        CancellationToken cancellationToken, 
+        bool updateType = false
+        )
     {
         var existingUser = await _userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
         long userId;
@@ -208,6 +222,7 @@ public class TelegramBotService
             {
                 TelegramId = user.Id,
                 Username = user.Username,
+                UserType = updateType ? UserType.BotUser : UserType.Subscriber,
             };
             userId = await _userRepository.CreateUser(newUser, cancellationToken);
         }
@@ -220,6 +235,11 @@ public class TelegramBotService
                                existingUser == null))
         {
             await _chatRepository.ConnectUserToChat(userId, chatId.Value);
+        }
+
+        if (existingUser != null && updateType)
+        {
+            await _userRepository.UpdateUserType(userId, UserType.BotUser);
         }
 
         return userId;
@@ -261,6 +281,9 @@ public class TelegramBotService
             case "/setdailymessage":
                 await HandleSetDailyMessageCommandAsync(message, cancellationToken);
                 break;
+            case "/getsubscribers":
+                await SendSubscribers(message, cancellationToken);
+                break;
             default:
                 if (command.StartsWith("/broadcast "))
                 {
@@ -270,9 +293,46 @@ public class TelegramBotService
                 {
                     await HandleSetWeeklyMessageAsync(message, command["/setweeklymessage ".Length..]);
                 }
-
                 break;
         }
+    }
+
+    private async Task SendSubscribers(Message message, CancellationToken cancellationToken)
+    {
+        var users = await _userRepository.GetUserList(new GetUserListRequest
+        {
+            OnlyActive = true,
+            UserType = UserType.BotUser
+        }, cancellationToken);
+        
+        if (users == null || !users.Any())
+        {
+            await _botClient.SendMessage(
+                message.Chat.Id,
+                "📋 Список подписчиков пуст",
+                cancellationToken: cancellationToken);
+            return;
+        }
+        
+        var sb = new StringBuilder();
+        sb.AppendLine($"👥 <b>Подписчики бота ({users.Count} шт.)</b>");
+        sb.AppendLine();
+
+        for (int i = 0; i < users.Count; i++)
+        {
+            var user = users[i];
+            string username = !string.IsNullOrWhiteSpace(user.Username)
+                ? $"@{user.Username}"
+                : $"id{user.TelegramId}";
+
+            sb.AppendLine($"{i + 1}. {username}");
+        }
+
+        await _botClient.SendMessage(
+            message.Chat.Id,
+            sb.ToString(),
+            parseMode: ParseMode.Html,
+            cancellationToken: cancellationToken);
     }
 
     private async Task HandleCommandAsync(Message message, string command, CancellationToken cancellationToken)
@@ -280,11 +340,11 @@ public class TelegramBotService
         switch (command.ToLower())
         {
             case "/start":
-                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
+                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken, true);
                 await SendHelpMessage(message, cancellationToken);
                 break;
             case "/restart":
-                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
+                await SaveOrUpdateUserAsync(message.From!, null, cancellationToken, true);
                 await SendHelpMessage(message, cancellationToken);
                 break;
             case "/excel":

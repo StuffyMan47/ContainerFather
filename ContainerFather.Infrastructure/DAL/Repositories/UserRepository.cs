@@ -9,6 +9,13 @@ namespace ContainerFather.Infrastructure.DAL.Repositories;
 
 public class UserRepository(AppDbContext dbContext) : IUserRepository
 {
+    public async Task UpdateUserType(long id, UserType userType)
+    {
+        await dbContext.Users
+            .Where(x=>x.Id == id)
+            .ExecuteUpdateAsync(x=>x.SetProperty(y=>y.Type, userType));
+    }
+    
     public async Task<long> CreateUser(CreateUserRequest request, CancellationToken cancellationToken)
     {
         var user = new User
@@ -18,14 +25,14 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
             Username = request.Username,
             LastActivity = DateTime.UtcNow,
             State = UserState.Active,
-            Type = UserType.Average,
+            Type = UserType.Subscriber,
         };
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync(cancellationToken);
         
         return user.Id;
     }
-
+    
     public async Task<GetUserStatisticResponse?> GetUserStatistic(long userId, CancellationToken cancellationToken)
     {
         var userInfo = await dbContext.Users
@@ -92,6 +99,11 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
         if (request.OnlyActive)
         {
             query = query.Where(x => x.State == UserState.Active);
+        }
+
+        if (request.UserType.HasValue)
+        {
+            query = query.Where(x => x.Type == request.UserType.Value);
         }
         
         var result = await query

@@ -4,5 +4,6 @@ public enum BroadcastState
 {
     Idle,
     WaitingForChatSelection,
-    WaitingForMessageText
+    WaitingForMessageText,
+    WaitingForMessageTextForAll,
 }

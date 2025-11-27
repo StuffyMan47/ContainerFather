@@ -1,3 +1,4 @@
+using ContainerFather.Core.Enums;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Models;
 using ContainerFather.Infrastructure.DAL.DbContext;
@@ -101,6 +102,7 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
             .AsNoTracking()
             .Where(x=>x.Id == chatId)
             .SelectMany(x=>x.Users)
+            .Where(x=>x.Type == UserType.BotUser)
             .Select(x=> new GetChatMembers
             {
                 Username = x.Username,

@@ -1,3 +1,4 @@
+using ContainerFather.Core.Enums;
 using ContainerFather.Core.Interfaces;
 using ContainerFather.Core.UseCases.Users.Models;
 
@@ -12,4 +13,5 @@ public interface IUserRepository : IScopedService
     Task UpdateUser(UpdateUserRequest request, CancellationToken cancellationToken);
     Task<GetUserStatisticResponse?> GetUserStatistic(long userId, CancellationToken cancellationToken);
     Task<List<GetUserListResponse>> GetUserListByChatId(long chatId, CancellationToken cancellationToken);
+    Task UpdateUserType(long id, UserType userType);
 }
