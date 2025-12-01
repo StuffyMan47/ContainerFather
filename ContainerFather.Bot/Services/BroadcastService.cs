@@ -185,8 +185,7 @@ public class BroadcastService : IBroadcastService
                 userId,
                 $"🚀 Начинаем рассылку в чат {session.SelectedChatName}...\nПолучателей: {memberIds.Count}"
             );
-
-
+            
             // Рассылка каждому пользователю
             foreach (var member in memberIds)
             {
@@ -298,7 +297,12 @@ public class BroadcastService : IBroadcastService
         await _botClient.SendMessage(
             chatId: chat.TelegramId,
             text: message.Message,
-            disableNotification: false
+            disableNotification: false,
+            replyMarkup: new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
+                new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/ContainerFatherBot") },
+            })
         );
     }
 }

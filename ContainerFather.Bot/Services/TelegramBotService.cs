@@ -68,141 +68,158 @@ public class TelegramBotService
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
     {
-        if (update.Message != null && update.Message.From != null &&
-            _botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
-            _adminDialogService.IsInDialog(update.Message.From.Id))
+        try
         {
-            var adminId = update.Message.From.Id;
-            var currentState = _adminDialogService.GetDialogState(adminId);
 
-            switch (currentState)
+
+            if (update.Message != null && update.Message.From != null &&
+                _botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+                _adminDialogService.IsInDialog(update.Message.From.Id))
             {
-                case AdminDialogState.ManagingWeeklyMessage:
-                    await HandleWeeklyMessageActionAsync(update.Message, cancellationToken);
-                    return;
+                var adminId = update.Message.From.Id;
+                var currentState = _adminDialogService.GetDialogState(adminId);
 
-                case AdminDialogState.WaitingForNewWeeklyMessage:
-                    await HandleNewWeeklyMessageInputAsync(adminId, update.Message, cancellationToken);
-                    return;
-
-                case AdminDialogState.ManagingDailyMessage:
-                    await HandleDailyMessageActionAsync(update.Message, cancellationToken);
-                    return;
-
-                case AdminDialogState.WaitingForNewDailyMessage:
-                    await HandleNewDailyMessageInputAsync(adminId, update.Message, cancellationToken);
-                    return;
-            }
-        }
-        
-        // Пересылка сообщений от обычных пользователей админам
-        if (update.Type == UpdateType.Message && 
-            update.Message?.From != null && 
-            !update.Message.Text.StartsWith('/') &&
-            !_botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
-            update.Message.Chat.Type is ChatType.Private)
-        {
-            await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
-        }
-
-        // Обработка документов
-        if (update.Type == UpdateType.Message && update.Message?.Type == MessageType.Document)
-        {
-            await HandleDocumentMessageAsync(update.Message, cancellationToken);
-        }
-
-        if (update.Type == UpdateType.CallbackQuery)
-        {
-            var callbackData = update.CallbackQuery.Data;
-            var buttonInfo = update.CallbackQuery.Data.Split(' ');
-
-            // Обработка callback для рассылки
-            if (callbackData.StartsWith("broadcast_chat"))
-            {
-                var groupId = long.Parse(buttonInfo[1]);
-                var chat = await _chatRepository.GetChatById(groupId, CancellationToken.None);
-                if (chat != null)
+                switch (currentState)
                 {
-                    await _broadcastService.SelectChatAsync(update.CallbackQuery.From.Id, chat.Id, chat.Name);
+                    case AdminDialogState.ManagingWeeklyMessage:
+                        await HandleWeeklyMessageActionAsync(update.Message, cancellationToken);
+                        return;
+
+                    case AdminDialogState.WaitingForNewWeeklyMessage:
+                        await HandleNewWeeklyMessageInputAsync(adminId, update.Message, cancellationToken);
+                        return;
+
+                    case AdminDialogState.ManagingDailyMessage:
+                        await HandleDailyMessageActionAsync(update.Message, cancellationToken);
+                        return;
+
+                    case AdminDialogState.WaitingForNewDailyMessage:
+                        await HandleNewDailyMessageInputAsync(adminId, update.Message, cancellationToken);
+                        return;
+                }
+            }
+
+            // Пересылка сообщений от обычных пользователей админам
+            if (update.Type == UpdateType.Message &&
+                update.Message?.From != null &&
+                !update.Message.Text.StartsWith('/') &&
+                !_botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+                update.Message.Chat.Type is ChatType.Private)
+            {
+                await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
+            }
+
+            // Обработка документов
+            if (update.Type == UpdateType.Message && update.Message?.Type == MessageType.Document)
+            {
+                await HandleDocumentMessageAsync(update.Message, cancellationToken);
+            }
+
+            if (update.Type == UpdateType.CallbackQuery)
+            {
+                var callbackData = update.CallbackQuery.Data;
+                var buttonInfo = update.CallbackQuery.Data.Split(' ');
+
+                // Обработка callback для рассылки
+                if (callbackData.StartsWith("broadcast_chat"))
+                {
+                    var groupId = long.Parse(buttonInfo[1]);
+                    var chat = await _chatRepository.GetChatById(groupId, CancellationToken.None);
+                    if (chat != null)
+                    {
+                        await _broadcastService.SelectChatAsync(update.CallbackQuery.From.Id, chat.Id, chat.Name);
+                    }
+
+                    await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
+                    return;
+                }
+                else if (callbackData == "broadcast_all")
+                {
+                    await _broadcastService.EnterMessage(update.CallbackQuery.From.Id);
+                }
+                else if (callbackData == "broadcast_cancel")
+                {
+                    await _broadcastService.CancelBroadcastSessionAsync(update.CallbackQuery.From.Id);
+                    await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
+                    return;
                 }
 
-                await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
+                switch (buttonInfo[0])
+                {
+                    case "user":
+                    {
+                        await _getStatisticHandler.SendUserStatistic(Int64.Parse(buttonInfo[1]),
+                            update.CallbackQuery.Message.Chat.Id, cancellationToken);
+                        break;
+                    }
+                    case "chat":
+                    {
+                        await _getStatisticHandler.SendChatStatistic(Int64.Parse(buttonInfo[1]),
+                            update.CallbackQuery.Message.Chat.Id,
+                            cancellationToken);
+                        break;
+                    }
+                }
+            }
+
+            if (update.Message is not { } message)
                 return;
-            }
-            else if (callbackData == "broadcast_all")
+
+            var telegramUserId = message.From?.Id;
+            var text = message.Text ?? string.Empty;
+
+            if (telegramUserId == null) return;
+
+            if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
             {
-                await _broadcastService.EnterMessage(update.CallbackQuery.From.Id);
-            }
-            else if (callbackData == "broadcast_cancel")
-            {
-                await _broadcastService.CancelBroadcastSessionAsync(update.CallbackQuery.From.Id);
-                await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, cancellationToken: cancellationToken);
-                return;
-            }
+                var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id,
+                    message.Chat.Title ?? "no name group",
+                    cancellationToken);
+                var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
 
-            switch (buttonInfo[0])
-            {
-                case "user":
-                {
-                    await _getStatisticHandler.SendUserStatistic(Int64.Parse(buttonInfo[1]),
-                        update.CallbackQuery.Message.Chat.Id, cancellationToken);
-                    break;
-                }
-                case "chat":
-                {
-                    await _getStatisticHandler.SendChatStatistic(Int64.Parse(buttonInfo[1]),
-                        update.CallbackQuery.Message.Chat.Id,
-                        cancellationToken);
-                    break;
-                }
-            }
-        }
-
-        if (update.Message is not { } message)
-            return;
-
-        var telegramUserId = message.From?.Id;
-        var text = message.Text ?? string.Empty;
-
-        if (telegramUserId == null) return;
-
-        if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
-        {
-            var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id, message.Chat.Title ?? "no name group",
-                cancellationToken);
-            var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
-
-            await _messageRepository.SaveMessageAsync(userId, text, chatId);
-        }
-        else
-        {
-            var userId = await SaveOrUpdateUserAsync(message.From!, null, cancellationToken);
-        }
-
-        if (message.Chat.Type is ChatType.Private)
-        {
-            var adminIds = _botConfiguration.AdminIds;
-            if (adminIds.Contains((long)message.From?.Id))
-            {
-                // Проверяем активную сессию рассылки
-                var broadcastSession = _broadcastService.GetSession((long)message.From?.Id);
-                if (broadcastSession?.State == BroadcastState.WaitingForMessageText)
-                {
-                    await _broadcastService.ProcessBroadcastMessageAsync((long)message.From?.Id, text);
-                    return;
-                }
-                else if (broadcastSession?.State == BroadcastState.WaitingForMessageTextForAll)
-                {
-                    await _broadcastService.SendBroadcastMessageForAllAsync((long)message.From?.Id, text);
-                    return;
-                }
-
-                await HandleAdminCommandAsync(message, text, cancellationToken);
+                await _messageRepository.SaveMessageAsync(userId, text, chatId);
             }
             else
             {
-                await HandleCommandAsync(message, text, cancellationToken);
+                var userId = await SaveOrUpdateUserAsync(message.From!, null, cancellationToken, true);
             }
+
+            if (message.Chat.Type is ChatType.Private)
+            {
+                var adminIds = _botConfiguration.AdminIds;
+                if (adminIds.Contains((long)message.From?.Id))
+                {
+                    // Проверяем активную сессию рассылки
+                    var broadcastSession = _broadcastService.GetSession((long)message.From?.Id);
+                    if (broadcastSession?.State == BroadcastState.WaitingForMessageText)
+                    {
+                        await _broadcastService.ProcessBroadcastMessageAsync((long)message.From?.Id, text);
+                        return;
+                    }
+                    else if (broadcastSession?.State == BroadcastState.WaitingForMessageTextForAll)
+                    {
+                        await _broadcastService.SendBroadcastMessageForAllAsync((long)message.From?.Id, text);
+                        return;
+                    }
+
+                    await HandleAdminCommandAsync(message, text, cancellationToken);
+                }
+                else
+                {
+                    await HandleCommandAsync(message, text, cancellationToken);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await _botClient.SendMessage(
+                "714862316",
+                "возникла ошибка при обработке запроса:" +
+                $"{ex.Message}\n" +
+                $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                $"было написано {update.Message?.Text}",
+                cancellationToken: cancellationToken);
+            Console.WriteLine(ex);
         }
     }
 
@@ -213,36 +230,50 @@ public class TelegramBotService
         bool updateType = false
         )
     {
-        var existingUser = await _userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
-        long userId;
-
-        if (existingUser == null)
+        try
         {
-            var newUser = new CreateUserRequest
+            var existingUser = await _userRepository.GetByTelegramIdAsync(user.Id, cancellationToken);
+            long userId;
+
+            if (existingUser == null)
             {
-                TelegramId = user.Id,
-                Username = user.Username,
-                UserType = updateType ? UserType.BotUser : UserType.Subscriber,
-            };
-            userId = await _userRepository.CreateUser(newUser, cancellationToken);
-        }
-        else
-        {
-            userId = existingUser.Id;
-        }
+                var newUser = new CreateUserRequest
+                {
+                    TelegramId = user.Id,
+                    Username = user.Username ?? user.FirstName,
+                    UserType = updateType ? UserType.BotUser : UserType.Subscriber,
+                };
+                userId = await _userRepository.CreateUser(newUser, cancellationToken);
+            }
+            else
+            {
+                userId = existingUser.Id;
+            }
 
-        if (chatId != null && ((existingUser != null && !existingUser.ChatIds.Contains(chatId.Value)) ||
-                               existingUser == null))
-        {
-            await _chatRepository.ConnectUserToChat(userId, chatId.Value);
-        }
+            if (chatId != null && ((existingUser != null && !existingUser.ChatIds.Contains(chatId.Value)) ||
+                                   existingUser == null))
+            {
+                await _chatRepository.ConnectUserToChat(userId, chatId.Value);
+            }
 
-        if (existingUser != null && updateType)
-        {
-            await _userRepository.UpdateUserType(userId, UserType.BotUser);
-        }
+            if (existingUser != null && updateType)
+            {
+                await _userRepository.UpdateUserType(userId, UserType.BotUser);
+            }
 
-        return userId;
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            await _botClient.SendMessage(
+                "714862316",
+                "возникла ошибка при создании пользователя:" +
+                $"{ex.Message}\n" +
+                $"username: {user.Username}, chatid : {chatId}",
+                cancellationToken: cancellationToken);
+            Console.WriteLine(ex);
+            throw;
+        }
     }
 
     private async Task HandleAdminCommandAsync(Message message, string command, CancellationToken cancellationToken)
