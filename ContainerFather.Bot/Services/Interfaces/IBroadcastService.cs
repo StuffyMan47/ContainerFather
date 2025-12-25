@@ -12,5 +12,6 @@ public interface IBroadcastService
     Task SendWeeklyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken);
     Task SendDailyBroadcastMessageAsync(long chatId, CancellationToken cancellationToken);
     Task SendBroadcastMessageForAllAsync(long userId, string messageText);
+    Task SendDailyChanelBroadcastMessageAsync(long chatId, CancellationToken cancellationToken);
     Task EnterMessage(long userId);
 }

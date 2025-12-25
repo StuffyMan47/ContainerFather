@@ -19,5 +19,6 @@ public class SendDailyMessageJob
     public async Task Execute()
     {
         await _broadcastService.SendDailyBroadcastMessageAsync(2, CancellationToken.None);
+        await _broadcastService.SendDailyChanelBroadcastMessageAsync(6, CancellationToken.None);
     }
 }

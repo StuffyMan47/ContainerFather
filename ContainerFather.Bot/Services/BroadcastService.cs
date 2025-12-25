@@ -302,6 +302,29 @@ public class BroadcastService : IBroadcastService
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
                 new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/ContainerFatherBot") },
+                new[] { InlineKeyboardButton.WithUrl("Пустой/нужен груз", "https://t.me/ContainerFatherBot") }
+            })
+        );
+    }
+    
+    public async Task SendDailyChanelBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
+    {
+        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.DailyChanel, cancellationToken);
+        if (message == null)
+        {
+            Console.WriteLine("Ежедневная рассылка отменена пока не создано сообщение для нее");
+            return;
+        }
+        var chat = await _chatRepository.GetChatById(chatId, cancellationToken);
+
+        await _botClient.SendMessage(
+            chatId: chat.TelegramId,
+            text: message.Message,
+            disableNotification: false,
+            replyMarkup: new InlineKeyboardMarkup(new[]
+            {
+                new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
+                new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/container_Trading_Hub") },
             })
         );
     }

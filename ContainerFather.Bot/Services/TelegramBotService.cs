@@ -70,8 +70,6 @@ public class TelegramBotService
     {
         try
         {
-
-
             if (update.Message != null && update.Message.From != null &&
                 _botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
                 _adminDialogService.IsInDialog(update.Message.From.Id))
