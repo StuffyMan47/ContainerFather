@@ -302,14 +302,14 @@ public class BroadcastService : IBroadcastService
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
                 new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/ContainerFatherBot") },
-                new[] { InlineKeyboardButton.WithUrl("Пустой/нужен груз", "https://t.me/ContainerFatherBot") }
+                new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/pustoy_est_gruzz") }
             })
         );
     }
     
     public async Task SendDailyChanelBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
     {
-        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.DailyChanel, cancellationToken);
+        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily, cancellationToken);
         if (message == null)
         {
             Console.WriteLine("Ежедневная рассылка отменена пока не создано сообщение для нее");
@@ -324,7 +324,8 @@ public class BroadcastService : IBroadcastService
             replyMarkup: new InlineKeyboardMarkup(new[]
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
-                new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/container_Trading_Hub") },
+                new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/ContainerFatherBot") },
+                new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/pustoy_est_gruzz") }
             })
         );
     }
