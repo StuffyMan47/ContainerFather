@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace ContainerFather.Bot.Services;
@@ -309,7 +310,7 @@ public class BroadcastService : IBroadcastService
     
     public async Task SendDailyChanelBroadcastMessageAsync(long chatId, CancellationToken cancellationToken)
     {
-        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.Daily, cancellationToken);
+        var message =  await _broadcastMessageRepository.GetActiveBroadcastMessage(BroadcastMessagePeriodType.DailyChanel, cancellationToken);
         if (message == null)
         {
             Console.WriteLine("Ежедневная рассылка отменена пока не создано сообщение для нее");
@@ -320,11 +321,11 @@ public class BroadcastService : IBroadcastService
         await _botClient.SendMessage(
             chatId: chat.TelegramId,
             text: message.Message,
+            parseMode: ParseMode.Html,
             disableNotification: false,
             replyMarkup: new InlineKeyboardMarkup(new[]
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
-                new[] { InlineKeyboardButton.WithUrl("Биржа-сервис", "https://t.me/ContainerFatherBot") },
                 new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/pustoy_est_gruzz") }
             })
         );
