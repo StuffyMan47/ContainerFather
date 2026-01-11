@@ -326,7 +326,6 @@ public class BroadcastService : IBroadcastService
             replyMarkup: new InlineKeyboardMarkup(new[]
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
-                new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/pustoy_est_gruzz") }
             })
         );
     }
