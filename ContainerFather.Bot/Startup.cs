@@ -19,9 +19,10 @@ public static class Startup
 {
     public static IServiceCollection AddBotLayer(this IServiceCollection services, IConfiguration config)
     {
+        var botToken = config.GetSection("BotConfiguration").GetSection("Token");
         services.AddSingleton<TelegramBotClient>(provider =>
         {
-            return new TelegramBotClient("8293970894:AAHDLNOTNuVhEi_jMk-aTYUAkKCY55s23ec");
+            return new TelegramBotClient(botToken.Value);
         });
         services.AddScoped<TelegramBotService>();
         services.AddSingleton<IAdminDialogService, AdminDialogService>();
