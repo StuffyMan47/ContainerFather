@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using ClosedXML.Excel;
+using ContainerFather.Bot.AiTunnelService;
+using ContainerFather.Bot.AiTunnelService.Model;
 using ContainerFather.Bot.Services.Dto;
 using ContainerFather.Bot.Services.Interfaces;
 using ContainerFather.Bot.States;
@@ -41,6 +44,7 @@ public class TelegramBotService
     private readonly TelegramBotClient _botClient;
     private readonly IWebHostEnvironment _environment;
     private readonly string[] _templateFolder = ["Files"];
+    private readonly IAiTunnelClient _aiTunnelClient;
 
     public TelegramBotService(
         IUserRepository userRepository,
@@ -51,6 +55,7 @@ public class TelegramBotService
         IGetStatisticHandler getStatisticHandler,
         IBroadcastService broadcastService,
         IWebHostEnvironment environment,
+        IAiTunnelClient aiTunnelClient,
         IOptions<BotConfiguration> options)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -64,6 +69,7 @@ public class TelegramBotService
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _botClient = new TelegramBotClient(options.Value.Token);
         _environment = environment;
+        _aiTunnelClient = aiTunnelClient ?? throw new ArgumentNullException(nameof(aiTunnelClient));
     }
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
@@ -168,13 +174,20 @@ public class TelegramBotService
 
             if (telegramUserId == null) return;
 
+            // Обработка сообщений в чатах
             if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
             {
                 var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id,
                     message.Chat.Title ?? "no name group",
                     cancellationToken);
                 var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
-
+                
+                //обработка через ИИ и запись в excel
+                if (!string.IsNullOrEmpty(text) && message.Chat.Id == -4996263366)
+                {
+                    await HandleMessage(message, cancellationToken);
+                }
+                
                 await _messageRepository.SaveMessageAsync(userId, text, chatId);
             }
             else
@@ -212,12 +225,80 @@ public class TelegramBotService
         {
             await _botClient.SendMessage(
                 "714862316",
-                "возникла ошибка при обработке запроса:" +
+                "Возникла ошибка при обработке запроса:" +
                 $"{ex.Message}\n" +
                 $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
                 $"было написано {update.Message?.Text}",
                 cancellationToken: cancellationToken);
             Console.WriteLine(ex);
+        }
+    }
+
+    public async Task HandleMessage(Message message, CancellationToken cancellationToken)
+    {
+        List<AiContainerResponse> objects = new List<AiContainerResponse>();
+        string result = null;
+        try
+        {
+            result = await _aiTunnelClient.SendMessage(message.Text);
+            objects = JsonSerializer.Deserialize<List<AiContainerResponse>>(result);
+        }
+        catch (JsonException ex)
+        {
+            if (result == null || !result.Contains("Амбасадор"))
+            {
+                await _botClient.SendMessage(
+                    "714862316",
+                    "Ошибка при десериализации сообщения из ai tunnel:" +
+                    $"{ex.Message}\n" +
+                    $"username: {message?.From?.Username}\n" +
+                    $"message: {message?.Text}",
+                    cancellationToken: cancellationToken);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            await _botClient.SendMessage(
+                "714862316",
+                "Ошибка при обработке сообщения в ai tunnel:" +
+                $"{ex.Message}\n" +
+                $"username: {message?.From?.Username}\n" +
+                $"message: {message?.Text}",
+                cancellationToken: cancellationToken);
+            throw;
+        }
+
+        try
+        {
+            if (objects != null && objects.Count > 0)
+            {
+                await WriteToGoogleSheets(objects.Select(x=> new ContainerRequestModel
+                {
+                    Availability = x.Availability,
+                    City = x.City,
+                    Date = DateTimeOffset.UtcNow,
+                    Condition = x.Condition,
+                    Currency = x.Currency,
+                    PriceWithoutTax = x.PriceWithoutTax,
+                    PriceWithTax = x.PriceWithTax,
+                    Size = x.Size,
+                    TransactionType = x.TransactionType,
+                    Type = x.Type,
+                    Username = $"@{message.From?.Username ?? message.From?.FirstName}",
+                }).ToList());
+            }
+        }
+        catch (Exception ex)
+        {
+            await _botClient.SendMessage(
+                "714862316",
+                "Ошибка при записи данных в excel таблицу:" +
+                $"{ex.Message}\n" +
+                $"username: {message?.From?.Username}\n" +
+                $"message: {message?.Text}",
+                cancellationToken: cancellationToken);
+            throw;
         }
     }
 

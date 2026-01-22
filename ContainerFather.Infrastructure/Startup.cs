@@ -1,9 +1,11 @@
 using System.Net.Mime;
 using System.Reflection;
 using ContainerFather.Bot;
+using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Core;
 using ContainerFather.Core.Interfaces.Settings;
 using ContainerFather.Core.Interfaces.Settings.Models;
+using ContainerFather.Infrastructure.Clients;
 using ContainerFather.Infrastructure.DAL;
 using ContainerFather.Infrastructure.Services;
 using ContainerFather.Infrastructure.Swagger;
@@ -29,6 +31,7 @@ public static class Startup
         services.AddApplicationLayer();
         services.AddBotLayer(config);
         services.AddSingleton<ISetting, Setting>();
+        services.AddScoped<IAiTunnelClient, AiTunnelClient>();
 
         // services.AddValidationBuilder();
 
