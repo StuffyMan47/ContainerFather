@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Bot.AiTunnelService.Model;
@@ -25,6 +26,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
+using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -177,6 +179,48 @@ public class TelegramBotService
             // Обработка сообщений в чатах
             if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
             {
+                if (ContainsLink(message.Text) || ContainsLink(message.Caption))
+                {
+                    try
+                    {
+                        await _botClient.DeleteMessage(
+                            chatId: message.Chat.Id,
+                            messageId: message.MessageId,
+                            cancellationToken: cancellationToken);
+            
+                        // Можно отправить предупреждение пользователю
+                        await _botClient.SendMessage(
+                            chatId: message.Chat.Id,
+                            text: $"Запрещено отправлять ссылки в чате",
+                            cancellationToken: cancellationToken);
+            
+                        return; // Прерываем дальнейшую обработку
+                    }
+                    catch (ApiRequestException ex) when (ex.ErrorCode == 403)
+                    {
+                        // Бот не имеет прав на удаление сообщений
+                        // Можно отправить сообщение в лог или админу
+                        await _botClient.SendMessage(
+                            "714862316",
+                            "Бот не имеет прав на удаление сообщений в чате" +
+                            $"{ex.Message}\n" +
+                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                            $"было написано {update.Message?.Text}",
+                            cancellationToken: cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        await _botClient.SendMessage(
+                            "714862316",
+                            "Ошибка при удалении сообщения:" +
+                            $"{ex.Message}\n" +
+                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                            $"было написано {update.Message?.Text}",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+                
+                
                 var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id,
                     message.Chat.Title ?? "no name group",
                     cancellationToken);
@@ -232,6 +276,47 @@ public class TelegramBotService
                 cancellationToken: cancellationToken);
             Console.WriteLine(ex);
         }
+    }
+    
+    private bool ContainsLink(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+    
+        // Регулярное выражение для поиска URL
+        var urlPattern = @"(https?://|www\.)[^\s]+";
+        return Regex.IsMatch(text, urlPattern, RegexOptions.IgnoreCase);
+    }
+    
+    private bool ContainsLink(Message message)
+    {
+        // Проверяем entities в тексте сообщения
+        if (message.Entities != null)
+        {
+            foreach (var entity in message.Entities)
+            {
+                if (entity.Type == MessageEntityType.Url || 
+                    entity.Type == MessageEntityType.TextLink)
+                {
+                    return true;
+                }
+            }
+        }
+    
+        // Проверяем entities в подписи (для медиа-сообщений)
+        if (message.CaptionEntities != null)
+        {
+            foreach (var entity in message.CaptionEntities)
+            {
+                if (entity.Type == MessageEntityType.Url || 
+                    entity.Type == MessageEntityType.TextLink)
+                {
+                    return true;
+                }
+            }
+        }
+    
+        return false;
     }
 
     public async Task HandleMessage(Message message, CancellationToken cancellationToken)
