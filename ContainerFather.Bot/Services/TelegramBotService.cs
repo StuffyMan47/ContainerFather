@@ -227,7 +227,7 @@ public class TelegramBotService
                 var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
                 
                 //обработка через ИИ и запись в excel
-                if (!string.IsNullOrEmpty(text) && message.Chat.Id == -4996263366)
+                if (!string.IsNullOrEmpty(text) && message.Chat.Id == -1001558448106 || message.Chat.Id == -4996263366)
                 {
                     await HandleMessage(message, cancellationToken);
                 }
