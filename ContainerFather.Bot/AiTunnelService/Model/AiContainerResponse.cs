@@ -20,7 +20,7 @@ public class AiContainerResponse
     /// <summary>
     /// Город
     /// </summary>
-    public required string City { get; set; }
+    public string? City { get; set; }
 
     /// <summary>
     /// Наличие

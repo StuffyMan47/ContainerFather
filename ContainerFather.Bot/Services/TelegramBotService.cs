@@ -183,6 +183,13 @@ public class TelegramBotService
                 {
                     try
                     {
+                        //пересылка сообщения с ссылкой
+                        await _botClient.ForwardMessage(
+                            chatId: 1037799385,
+                            fromChatId: message.Chat.Id,
+                            messageId: message.MessageId,
+                            cancellationToken: cancellationToken);
+                        
                         await _botClient.DeleteMessage(
                             chatId: message.Chat.Id,
                             messageId: message.MessageId,
@@ -353,6 +360,40 @@ public class TelegramBotService
                 cancellationToken: cancellationToken);
             throw;
         }
+        
+        var allMissingFields = new HashSet<string>();
+        bool hasInvalidRecords = false;
+    
+        foreach (var obj in objects)
+        {
+            var missingFields = GetMissingFields(obj);
+            if (missingFields.Any())
+            {
+                hasInvalidRecords = true;
+                foreach (var field in missingFields)
+                {
+                    allMissingFields.Add(field);
+                }
+            }
+        }
+        
+        // Если есть неполные записи - запрашиваем дополнение информации
+        if (hasInvalidRecords)
+        {
+            // Формируем читаемый список отсутствующих полей
+            var missingFieldsList = string.Join(", ", allMissingFields);
+            var responseText =
+                $"Дополните Ваше предложение необходимой информацией ({missingFieldsList}) Так выйдем на сделку быстрее";
+        
+            var replyParams = new ReplyParameters { MessageId = message.MessageId };
+            await _botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: responseText,
+                replyParameters: replyParams,
+                cancellationToken: cancellationToken);
+            // Не записываем в таблицу при неполных данных
+            return;
+        }
 
         try
         {
@@ -385,6 +426,52 @@ public class TelegramBotService
                 cancellationToken: cancellationToken);
             throw;
         }
+    }
+    
+    /// <summary>
+    /// Проверяет наличие обязательных полей в записи контейнера.
+    /// Возвращает список отсутствующих полей на русском языке для пользователя.
+    /// </summary>
+    private List<string> GetMissingFields(AiContainerResponse container)
+    {
+        var missingFields = new List<string>();
+    
+        // Цена - обязательна: хотя бы одна из двух должна быть заполнена
+        if ((container.PriceWithTax == null || container.PriceWithTax == 0) && 
+            (container.PriceWithoutTax == null || container.PriceWithoutTax == 0))
+        {
+            missingFields.Add("стоимость контейнера");
+        }
+        
+        // Size - обязательное поле без дефолтного значения
+        if (string.IsNullOrWhiteSpace(container.Size) || 
+            container.Size.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            missingFields.Add("размер контейнера");
+        }
+    
+        // Type - обязательное поле без дефолтного значения
+        if (string.IsNullOrWhiteSpace(container.Type) || 
+            container.Type.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            missingFields.Add("тип контейнера (HC, DC, NEW или CW)");
+        }
+    
+        // City - обязательное поле без дефолтного значения
+        if (string.IsNullOrWhiteSpace(container.City) || 
+            container.City.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            missingFields.Add("город");
+        }
+        
+        // TransactionType - обязательное поле без дефолтного значения
+        if (string.IsNullOrWhiteSpace(container.TransactionType) || 
+            container.TransactionType.Equals("null", StringComparison.OrdinalIgnoreCase))
+        {
+            missingFields.Add("тип операции (продажа/покупка)");
+        }
+        
+        return missingFields;
     }
 
     private async Task<long> SaveOrUpdateUserAsync(
