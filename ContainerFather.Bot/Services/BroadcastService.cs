@@ -301,8 +301,10 @@ public class BroadcastService : IBroadcastService
             disableNotification: false,
             replyMarkup: new InlineKeyboardMarkup(new[]
             {
+                new[] { InlineKeyboardButton.WithUrl("Биржа контейнеров в Max", "https://max.ru/join/6V2LpcbRPjbb1a5_sPclvd781XFjG18IIA-bL7NM4PM") },
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
-                new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/+0dWxrmVrUellOTYy") }
+                new[] { InlineKeyboardButton.WithUrl("Есть груз/пустой", "https://t.me/+0dWxrmVrUellOTYy") },
+                new[] { InlineKeyboardButton.WithUrl("Нужен груз/машина в Max", "https://max.ru/join/JCUpKTeABgVlJyTNhF_fkkrmceQ3-NLqTX5tpL4kmdQ") }
             })
         );
     }
@@ -325,6 +327,8 @@ public class BroadcastService : IBroadcastService
             replyMarkup: new InlineKeyboardMarkup(new[]
             {
                 new[] { InlineKeyboardButton.WithUrl("Кэш-сервиc", "https://t.me/cash_servise") },
+                new[] { InlineKeyboardButton.WithUrl("Нужен груз/машина в Max", "https://max.ru/join/JCUpKTeABgVlJyTNhF_fkkrmceQ3-NLqTX5tpL4kmdQ") }
+
             })
         );
     }
