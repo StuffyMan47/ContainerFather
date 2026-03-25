@@ -10,6 +10,7 @@ public partial class AppDbContext
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<BroadcastMessage> BroadcastMessages => Set<BroadcastMessage>();
     public DbSet<Chat> Chats => Set<Chat>();
+    public DbSet<LlmError> LlmErrors => Set<LlmError>();
     
     public void Configure(EntityTypeBuilder<User> builder)
     {

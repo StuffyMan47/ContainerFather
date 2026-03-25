@@ -1,3 +1,5 @@
+using ContainerFather.Core.Enums.SiteEnums;
+
 namespace ContainerFather.Bot.AiTunnelService.Model;
 
 public class AiContainerResponse
@@ -20,7 +22,7 @@ public class AiContainerResponse
     /// <summary>
     /// Город
     /// </summary>
-    public string? City { get; set; }
+    public required string City { get; set; }
 
     /// <summary>
     /// Наличие
@@ -43,7 +45,12 @@ public class AiContainerResponse
     public required string Currency { get; set; }
     
     /// <summary>
-    /// Тип сделки
+    /// Количество
     /// </summary>
-    public required string TransactionType { get; set; }
+    public required int Count { get; set; }
+    
+    /// <summary>
+    /// Определенная категория для сайта
+    /// </summary>
+    public CategoryEnum CategoryId { get; set; }
 }

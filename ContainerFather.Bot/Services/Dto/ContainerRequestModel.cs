@@ -2,6 +2,7 @@ namespace ContainerFather.Bot.Services.Dto;
 
 public class ContainerRequestModel
 {
+    public required Guid SourceId { get; set; }
     /// <summary>
     /// Размер
     /// </summary>
@@ -53,7 +54,7 @@ public class ContainerRequestModel
     public required string Currency { get; set; }
     
     /// <summary>
-    /// Тип сделки
+    /// Количество
     /// </summary>
-    public required string TransactionType { get; set; }
+    public required int Count { get; set; }
 }
