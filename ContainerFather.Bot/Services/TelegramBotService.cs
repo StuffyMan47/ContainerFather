@@ -1173,6 +1173,11 @@ public class TelegramBotService
 
         try
         {
+            var currentWeekStart = GetWeekStartMonday(DateTime.UtcNow);
+            var sheetName = GetWeekSheetName(currentWeekStart);
+            
+            await EnsureSheetWithHeadersAsync(sheetsService, spreadsheetId, sheetName);
+            
             // Преобразуем модели в данные для Google Sheets
             var values = new List<IList<object>>();
 
@@ -1201,7 +1206,7 @@ public class TelegramBotService
             }
 
             // Динамическое определение диапазона
-            var range = $"A2:K{values.Count + 1}";
+            var range = $"{sheetName}!A2:K{values.Count + 1}";
 
             var valueRange = new ValueRange
             {
@@ -1248,6 +1253,74 @@ public class TelegramBotService
             Console.WriteLine($"Критическая ошибка при записи в Google Таблицу: {ex.Message}");
             throw;
         }
+    }
+    
+    private async Task EnsureSheetWithHeadersAsync(SheetsService service, string spreadsheetId, string sheetName)
+    {
+        // Получаем список существующих листов
+        var getSpreadsheetRequest = service.Spreadsheets.Get(spreadsheetId);
+        getSpreadsheetRequest.Fields = "sheets(properties.title)";
+        var spreadsheet = await getSpreadsheetRequest.ExecuteAsync();
+    
+        var sheetExists = spreadsheet.Sheets?.Any(s => 
+            s.Properties?.Title?.Equals(sheetName, StringComparison.OrdinalIgnoreCase) == true) == true;
+
+        if (!sheetExists)
+        {
+            Console.WriteLine($"🆕 Создаю новый лист: '{sheetName}'");
+        
+            // Создаём новый лист
+            var batchRequest = new BatchUpdateSpreadsheetRequest
+            {
+                Requests = new List<Request>
+                {
+                    new Request
+                    {
+                        AddSheet = new AddSheetRequest
+                        {
+                            Properties = new SheetProperties
+                            {
+                                Title = sheetName,
+                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 11 }
+                            }
+                        }
+                    }
+                }
+            };
+        
+            await service.Spreadsheets.BatchUpdate(batchRequest, spreadsheetId).ExecuteAsync();
+        
+            // Записываем заголовки в первую строку
+            var headers = new List<IList<object>>
+            {
+                new List<object> 
+                { 
+                    "Размер", "Тип", "Состояние", "Город", "Дата", 
+                    "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
+                    "Валюта", "Тип сделки" 
+                }
+            };
+        
+            var headerRange = new ValueRange { Values = headers };
+            var headerRequest = service.Spreadsheets.Values.Update(headerRange, spreadsheetId, $"{sheetName}!A1:K1");
+            headerRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
+            await headerRequest.ExecuteAsync();
+        }
+    }
+    
+    private static DateTime GetWeekStartMonday(DateTime date)
+    {
+        // Вычисляем, сколько дней нужно отнять, чтобы попасть в понедельник
+        int daysToMonday = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
+        return date.AddDays(-daysToMonday).Date;
+    }
+
+    // 🏷️ Формирование имени листа: "24.03.25-30.03.25"
+    // Формат безопасен для Google Sheets (без запрещённых символов \ / ? * [ ])
+    private static string GetWeekSheetName(DateTime weekStart)
+    {
+        var weekEnd = weekStart.AddDays(6);
+        return $"{weekStart:dd.MM.yy}-{weekEnd:dd.MM.yy}";
     }
     
     private async Task ForwardUserMessageToAdminsAsync(Message message, CancellationToken cancellationToken)
