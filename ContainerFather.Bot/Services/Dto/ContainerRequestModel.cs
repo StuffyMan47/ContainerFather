@@ -1,8 +1,13 @@
+using ContainerFather.Core.Enums.SiteEnums;
+
 namespace ContainerFather.Bot.Services.Dto;
 
 public class ContainerRequestModel
 {
+    public CategoryEnum CategoryId { get; set; }
+    
     public required Guid SourceId { get; set; }
+    
     /// <summary>
     /// Размер
     /// </summary>
@@ -17,6 +22,8 @@ public class ContainerRequestModel
     /// Состояние
     /// </summary>
     public string? Condition { get; set; }
+    
+    public ConditionEnum ConditionId { get; set; }
     
     /// <summary>
     /// Город
@@ -53,8 +60,15 @@ public class ContainerRequestModel
     /// </summary>
     public required string Currency { get; set; }
     
+    public required CurrencyEnum CurrencyId { get; set; }
+    
     /// <summary>
     /// Количество
     /// </summary>
     public required int Count { get; set; }
+    
+    /// <summary>
+    /// Будет ли опубликована позиция на сайт
+    /// </summary>
+    public bool IsPublicToSite { get; set; }
 }

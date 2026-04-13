@@ -15,7 +15,7 @@ public class SendContainersInfoRequest
     /// Содержит инфу о типе и размере контейнера
     /// </summary>
     [JsonPropertyName("categoryId")]
-    public CategoryEnum CategoryId { get; set; }
+    public required CategoryEnum CategoryId { get; set; }
 
     /// <summary>
     /// Количество
@@ -28,12 +28,6 @@ public class SendContainersInfoRequest
     /// </summary>
     [JsonPropertyName("condition")]
     public ConditionEnum Condition { get; set; }
-
-    /// <summary>
-    /// Город
-    /// </summary>
-    [JsonPropertyName("city")]
-    public required string City { get; set; }
     
     /// <summary>
     /// Местоположения в широте и долготе
@@ -72,16 +66,16 @@ public class SendContainersInfoRequest
     public required CurrencyEnum Currency { get; set; }
     
     /// <summary>
-    /// Полный адрес
+    /// Полный адрес если есть, как минимум город
     /// </summary>
     [JsonPropertyName("address")]
-    public string? Address { get; set; }
+    public required string Address { get; set; }
 }
 
 public class LocationDetails
 {
     [JsonPropertyName("latitude")]
-    public float Latitude { get; set; }
+    public double Latitude { get; set; }
     [JsonPropertyName("longitude")]
-    public float Longitude { get; set; }
+    public double Longitude { get; set; }
 }

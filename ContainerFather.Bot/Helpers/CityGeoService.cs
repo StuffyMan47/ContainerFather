@@ -1,17 +1,11 @@
-namespace ContainerFather.Bot.Helpers;
-
-public class CityGeoService
-{
-    
-}
-
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
+
+namespace ContainerFather.Bot.Helpers;
 
 public class CityCoordinates
 {
@@ -21,7 +15,7 @@ public class CityCoordinates
     public bool IsFound { get; set; }
 }
 
-public class CityGeoService
+public static class CityGeoService
 {
     // Локальная база координат для основных городов (оффлайн-доступ)
     private static readonly Dictionary<string, (double Lat, double Lon)> LocalCityDatabase = 
@@ -116,59 +110,10 @@ public class CityGeoService
         "Китай", "Узбекистан", "СНГ", "Россия", "РФ", "Беларусь", "Казахстан"
     };
 
-    private readonly HttpClient _httpClient = new HttpClient();
-    private readonly Dictionary<string, CityCoordinates> _cache = new Dictionary<string, CityCoordinates>(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Получить координаты для списка городов
-    /// </summary>
-    public async Task<List<CityCoordinates>> GetCoordinatesForCitiesAsync(List<string> cities)
-    {
-        var results = new List<CityCoordinates>();
-        
-        foreach (var city in cities)
-        {
-            if (string.IsNullOrWhiteSpace(city))
-                continue;
-
-            var trimmedCity = city.Trim();
-
-            // Пропускаем страны и регионы
-            if (NonCityEntries.Contains(trimmedCity))
-            {
-                results.Add(new CityCoordinates 
-                { 
-                    City = trimmedCity, 
-                    IsFound = false,
-                    Latitude = null,
-                    Longitude = null
-                });
-                continue;
-            }
-
-            // Проверяем кэш
-            if (_cache.TryGetValue(trimmedCity, out var cached))
-            {
-                results.Add(cached);
-                continue;
-            }
-
-            // Получаем координаты
-            var coordinates = await GetCityCoordinatesAsync(trimmedCity);
-            _cache[trimmedCity] = coordinates;
-            results.Add(coordinates);
-
-            // Небольшая задержка для API (если используется)
-            await Task.Delay(100);
-        }
-
-        return results;
-    }
-
     /// <summary>
     /// Получить координаты одного города
     /// </summary>
-    public async Task<CityCoordinates> GetCityCoordinatesAsync(string city)
+    public static CityCoordinates GetCityCoordinatesAsync(string city)
     {
         var result = new CityCoordinates { City = city };
 
@@ -181,65 +126,13 @@ public class CityGeoService
             return result;
         }
 
-        // Если не найдено в локальной базе, используем API (Nominatim)
-        try
-        {
-            var apiCoords = await GetCoordinatesFromApiAsync(city);
-            if (apiCoords != null)
-            {
-                result.Latitude = apiCoords.Lat;
-                result.Longitude = apiCoords.Lon;
-                result.IsFound = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Ошибка при получении координат для {city}: {ex.Message}");
-        }
-
         return result;
-    }
-
-    /// <summary>
-    /// Получить координаты через Nominatim API
-    /// </summary>
-    private async Task<(double Lat, double Lon)?> GetCoordinatesFromApiAsync(string city)
-    {
-        try
-        {
-            var url = $"https://nominatim.openstreetmap.org/search?format=json&q={Uri.EscapeDataString(city + ", Россия")}&limit=1";
-            
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("User-Agent", "CityCoordinatesApp/1.0");
-
-            var response = await _httpClient.GetAsync(url);
-            if (response.IsSuccessStatusCode)
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                var results = JsonSerializer.Deserialize<List<JsonElement>>(json);
-
-                if (results != null && results.Count > 0)
-                {
-                    var first = results[0];
-                    return (
-                        double.Parse(first.GetProperty("lat").GetString()!),
-                        double.Parse(first.GetProperty("lon").GetString()!)
-                    );
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // Игнорируем ошибки API
-        }
-
-        return null;
     }
 
     /// <summary>
     /// Получить уникальные города из списка
     /// </summary>
-    public List<string> GetUniqueCities(List<string> cities)
+    public static List<string> GetUniqueCities(List<string> cities)
     {
         return cities
             .Where(c => !string.IsNullOrWhiteSpace(c))
@@ -248,26 +141,5 @@ public class CityGeoService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(c => c)
             .ToList();
-    }
-
-    /// <summary>
-    /// Экспорт результатов в CSV
-    /// </summary>
-    public void ExportToCsv(List<CityCoordinates> results, string filePath)
-    {
-        var csv = new System.Text.StringBuilder();
-        csv.AppendLine("Город,Широта,Долгота,Найдено");
-
-        foreach (var result in results)
-        {
-            csv.AppendLine($"{result.City},{result.Latitude?.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) ?? ""},{result.Longitude?.ToString("F6", System.Globalization.CultureInfo.InvariantCulture) ?? ""},{result.IsFound}");
-        }
-
-        System.IO.File.WriteAllText(filePath, csv.ToString(), System.Text.Encoding.UTF8);
-    }
-
-    public void Dispose()
-    {
-        _httpClient.Dispose();
     }
 }

@@ -17,17 +17,21 @@ public class AiContainerResponse
     /// <summary>
     /// Состояние
     /// </summary>
-    public string? Condition { get; set; }
+    public string? ConditionName { get; set; }
+    
+    public ConditionEnum? ConditionId { get; set; }
     
     /// <summary>
     /// Город
     /// </summary>
     public required string City { get; set; }
+    
+    public string? FullAddress { get; set; }
 
     /// <summary>
     /// Наличие
     /// </summary>
-    public string? Availability {get; set;}
+    public required string Availability {get; set;}
     
     /// <summary>
     /// Цена с НДС
@@ -42,7 +46,7 @@ public class AiContainerResponse
     /// <summary>
     /// Валюта
     /// </summary>
-    public required string Currency { get; set; }
+    public required CurrencyEnum Currency { get; set; }
     
     /// <summary>
     /// Количество

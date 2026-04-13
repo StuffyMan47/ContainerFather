@@ -31,7 +31,7 @@ public class AiTunnelClient : IAiTunnelClient
             {
                 new { role = "user", content = $"{Prompt1} Вот само сообщение: {message}" }
             },
-            max_tokens = 50000
+            max_tokens = 8192
         };
 
         // Отправка запроса
@@ -54,21 +54,88 @@ public class AiTunnelClient : IAiTunnelClient
                                   Твоя задача  
                                   Ты — алгоритм обработки текстовых сообщений о продаже/покупке морских контейнеров.  
                                   Конвертируй входной текст в JSON-массив объектов**, строго соответствующих C#-модели ниже.  
-                                  Используй только данные из текста, применяй правила ниже для нормализации. Если данные отсутствуют — используй значения по умолчанию (указаны в правилах).  
+                                  Используй только данные из текста, применяй правила ниже для нормализации. Если данные отсутствуют — используй значения по умолчанию (указаны в правилах). 
+                                  Вот нужные для определения значения перечисления: 
+                                  Валюта (CurrencyEnum)
+                                  7 - рубль
+                                  8 - доллар
+                                  9 - евро
+                                  10 - тенге
+                                  11 - гривна
+                                  12 - белорусский рубль
+                                  
+                                  Состояние (ConditionEnum)
+                                  5 - новый
+                                  6 - б/у
+                                  
+                                  Категории (CategoryEnum)
+                                  5 - Морские и ЖД контейнеры
+                                  -- 6 - Контейнеры 10 футов
+                                  -- 7 - Контейнеры 20 футов
+                                  -- 8 - Контейнеры 40 футов
+                                  -- 9 - Контейнеры 45 футов
+                                  -- 24 - Контейнеры 5 тонн
+                                  -- 25 - контейнеры 3 тонны
+                                  53 - High Cube контейнеры
+                                  -- 54 - High Cube контейнеры 20 футов
+                                  -- 55 - High Cube контейнеры 40 футов
+                                  17 - Open Top контейнеры
+                                  -- 18 - Open Top контейнеры 20 футов
+                                  -- 19 - Open Top контейнеры 40 футов
+                                  20 - Flat Rack контейнеры
+                                  -- 21 - Flat Rack контейнеры 20 футов
+                                  -- 22 - Flat Rack контейнеры 40 футов
+                                  10 - Рефрижераторные контейнеры
+                                  -- 13 - Рефконтейнеры 20 футов
+                                  -- 12 - Рефконтейнеры 40 футов
+                                  -- 11 - Рефконтейнеры 45 футов
+                                  14 - Танк-контейнеры
+                                  -- 16 - Танк-контейнеры 20 футов
+                                  -- 15 - Танк-контейнеры 40 футов
+                                  26 - Бытовки
+                                  -- 32 - Деревянные бытовки
+                                  -- 33 - Металлические бытовки
+                                  -- 28 - Дачные бытовки
+                                  -- 27 - Строительные бытовки
+                                  -- 56 - Утепленные бытовки
+                                  -- 29 - Бытовки-вагончики
+                                  -- 30 - Бытовки-бани
+                                  31 - Модульные здания
+                                  34 - Блок-контейнеры
+                                  35 - Мусорные контейнеры
+                                  -- 36 - Мультилифт-контейнеры
+                                  -- 37 - Бункер-контейнеры
+                                  -- 39 - до 1.3 м3
+                                  -- 57 - от 8 м3
+                                  -- 40 - Урны до 0.5 м3
+                                  -- 41 - Пресс-контейнеры
+                                  42 - Запчасти для контейнеров
+                                  43 - Услуги
+                                  -- 44 - Перевозка
+                                  -- 45 - Аренда
+                                  -- 46 - Ремонт
+                                  -- 47 - Хранение
+                                  -- 48 - Страхование
+                                  49 - Новости, События, Выставки
+                                  50 - Терминалы, площадки, склады
+                                  51 - Прочее
+                                  52 - Рекламные объявления
                                   public class AiContainerResponse
                                   {
                                       public required string Size { get; set; } // Обязательное: "20", "40" и т.д.
-                                      public required string Type { get; set; } // Обязательное: "HC", "DC", "NEW", "CW"
-                                      public string? Condition { get; set; } // Опционально: "Б/У", "Новый"
+                                      public required string Type { get; set; } // Обязательное: "DC", "HC", "OT", "FR", "TK",
+                                      public required CategoryEnum CategoryId { get; set; } // Обязательное: значения взять из enum CategoryEnum
+                                      public string? ConditionName { get; set; } // Обязательное: "Б/У", "Новый"
+                                      public ConditionEnum? ConditionId { get; set; } // Обязательное: 5 - Новый, 6 - Б/У.
                                       public required string City { get; set; } // Обязательное: название города (исправить опечатки!)
+                                      public string? FullAddress { get; set; } // Опционально: Полный адрес
                                       public required string Availability { get; set; } // Обязательное: "В наличии", "По запросу"
                                       
                                       // Обязательно один из видов цен должен быть заполнен
                                       public decimal? PriceWithTax { get; set; } // Опционально: число в рублях (умножить "тыс" на 1000)
                                       public decimal? PriceWithoutTax { get; set; } // Опционально
-                                      
-                                      public required string Currency { get; set; } // Обязательное: "RUB" (по умолчанию), "USD"
-                                      public required string TransactionType { get; set; } // Обязательное: "Продажа" или "Покупка"
+                                      public required int Count { get; set; }
+                                      public required CurrencyEnum Currency { get; set; } // Обязательное: 7 (по умолчанию), значения брать из enum CurrencyEnum
                                   }
                                   Правила обработки  
                                   1. Разделение на записи  
@@ -79,20 +146,10 @@ public class AiTunnelClient : IAiTunnelClient
                                       СПб 40HC NEW - 200 тыс  
                                       ```  
                                       2 записи в массиве.  
-                                  - Если в сообщении есть #продам** и #куплю** — разделить на разные записи с разными `TransactionType`.  
+                                  - Если в сообщении есть #продам**, то нужно брать позиции только из этого блока и игнорировать блоки #куплю** или #выдам** 
                                   - Игнорируй служебные фразы («ВСЕМ ПРИВЕТ!», «Коллеги, добрый день», «Предложение действует до...»).
 
-                                  2. Поля с жесткими правилами**  
-                                  - `TransactionType`  
-                                    - `#продам`, «Продам», «Предлагаем» → `"Продажа"`  
-                                    - `#куплю`, «Куплю» → `"Покупка"`  
-
-                                  - `Currency`  
-                                    - По умолчанию: `"рубль"`  
-                                    - Только если явно указано: `$`, «доллар» → `"доллар"`  
-                                    - Также есть поддержка валют "рубль", "доллар", "евро", "тенге", "гривна", "белорусский рубль"
-
-                                  3. Нормализация данных**  
+                                  2. Нормализация данных**  
                                   - `Size` и `Type`  
                                     - `Size`: извлеки цифры перед «фут», «HC», «DC» (например, «40HC» → `"40"`, «20 фут» → `"20"`).  
                                     - `Type`:  
@@ -106,7 +163,10 @@ public class AiTunnelClient : IAiTunnelClient
                                       - «МСК» → `"Москва"`  
                                       - «СПб» → `"Санкт-Петербург"`  
                                       - «Екб» → `"Екатеринбург"`  
-                                    - Если город не указан явно (например, «1*40НС МСК - Владивосток») — брать **первый город** («Москва»).  
+                                    - Если город не указан явно (например, «1*40НС МСК - Владивосток») — брать **первый город** («Москва»). 
+                                    
+                                  - `FullAddress`
+                                    - Если помимо города указан полный адрес, то целиком записывай его в это поле 
 
                                   - `PriceWithTax` / `PriceWithoutTax`  
                                     - Правило 1:** Если есть «с НДС» → заполни `PriceWithTax` (число × 1000, если есть «тыс»).  
@@ -116,12 +176,8 @@ public class AiTunnelClient : IAiTunnelClient
                                       68 000 c НДС (82 900 без НДС)
                                       ```  
                                       → `PriceWithTax: 68000`, `PriceWithoutTax: 82900`  
-                                    - Правило 4:** «от 100 тыс» → `PriceWithTax: 100000`, `Availability: "По запросу"`.  
-                                    - Правило 5:** Если цена указана без НДС/без пометок → `PriceWithTax: null`, `PriceWithoutTax: [число]`.  
-
-                                  - `Condition`  
-                                    - «б/у», «used», «CW» → `"б/у"`  
-                                    - «NEW», «новый» → `"новый"`  
+                                    - Правило 4:** «от 100 тыс» → `PriceWithTax: 100000`.  
+                                    - Правило 5:** Если цена указана без НДС/без пометок → `PriceWithTax: [число]`, `PriceWithoutTax: null`.  
 
                                   - `Availability`  
                                     - «много», «В наличии» → `"В наличии"`  
@@ -131,7 +187,7 @@ public class AiTunnelClient : IAiTunnelClient
                                     - Если не указано количество → заполни `1`. 
                                     
                                   Формат вывода  
-                                  - Только валидный JSON-массив объектов `ContainerRequestModel`.  
+                                  - Только валидный JSON-массив объектов `AiContainerResponse`. Без markdown-блоков (```json), без пояснений, без преамбулы.
                                   - Никакого дополнительного текста до/после JSON.  
                                   - Все обязательные поля должны быть заполнены (используй значения по умолчанию, если данных нет).  
 
@@ -139,37 +195,43 @@ public class AiTunnelClient : IAiTunnelClient
                                   Пример 1:  
                                   Вход:  
                                   ```
-                                  #Продам 
-                                  Благовещенск 40HC - 100 тыс
-                                  Омск 40 фут от 130 тыс с ндс 
+                                  #продам 
+                                  Специальные цены с Trans Russia 2026
+                                  действуют до 11.04.2026:
+                                  
+                                  Екатеринбург
+                                  20DC 6/y-79 000 Р с НДС
+                                  
+                                  Москва
+                                  40HC 6/y-89 500 Р с НДС
                                   ```  
                                   Выход:  
                                   [
                                     {
-                                      "Size": "40",
-                                      "Type": "HC",
-                                      "Condition": null,
-                                      "City": "Благовещенск",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
-                                      "PriceWithTax": 100000,
+                                      "Size": "20",
+                                      "Type": "DC",
+                                      "ConditionName": "Б/У",
+                                      "ConditionId": 6,
+                                      "City": "Екатеринбург",
+                                      "Availability": "В наличии",
+                                      "PriceWithTax": 79000,
                                       "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Продажа"
+                                      "Currency": 7,
+                                      "Count": 1,
+                                      "CategoryId": 7
                                     },
                                     {
                                       "Size": "40",
-                                      "Type": "DC",
-                                      "Condition": null,
-                                      "City": "Омск",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": "По запросу",
-                                      "PriceWithTax": 130000,
+                                      "Type": "HC",
+                                      "ConditionName": "Б/У",
+                                      "ConditionId": 6,
+                                      "City": "Москва",
+                                      "Availability": "В наличии",
+                                      "PriceWithTax": 89500,
                                       "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Продажа"
+                                      "Currency": 7,
+                                      "Count": 1,
+                                      "CategoryId": 55
                                     }
                                   ]
 
@@ -184,28 +246,28 @@ public class AiTunnelClient : IAiTunnelClient
                                     {
                                       "Size": "20",
                                       "Type": "DC",
-                                      "Condition": "Б/У",
+                                      "ConditionName": "Б/У",
+                                      "ConditionId": 6,
                                       "City": "Екатеринбург",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
+                                      "Availability": "В наличии",
                                       "PriceWithTax": 68000,
                                       "PriceWithoutTax": 82900,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Продажа"
+                                      "Currency": 7,
+                                      "Count": 1,
+                                      "CategoryId": 7
                                     },
                                     {
                                       "Size": "40",
                                       "Type": "HC",
-                                      "Condition": "NEW",
+                                      "ConditionName": "Новый",
+                                      "ConditionId": 5,
                                       "City": "Санкт-Петербург",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
+                                      "Availability": "В наличии",
                                       "PriceWithTax": 249000,
-                                      "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Продажа"
+                                      "PriceWithoutTax": 260000,
+                                      "Currency": 7,
+                                      "Count": 1,
+                                      "CategoryId": 55
                                     }
                                   ]
 
@@ -223,41 +285,15 @@ public class AiTunnelClient : IAiTunnelClient
                                     {
                                       "Size": "40",
                                       "Type": "HC",
-                                      "Condition": "CW",
+                                      "ConditionName": "Б/У",
+                                      "ConditionId": 6,
                                       "City": "Екатеринбург",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
+                                      "Availability": "В наличии",
                                       "PriceWithTax": 105000,
                                       "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Продажа"
-                                    },
-                                    {
-                                      "Size": "40",
-                                      "Type": "HC",
-                                      "Condition": "CW",
-                                      "City": "Самара",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
-                                      "PriceWithTax": null,
-                                      "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Покупка"
-                                    },
-                                    {
-                                      "Size": "40",
-                                      "Type": "HC",
-                                      "Condition": "CW",
-                                      "City": "Тольятти",
-                                      "Date": "2026-01-09T00:00:00+03:00",
-                                      "Username": "Unknown",
-                                      "Availability": null,
-                                      "PriceWithTax": null,
-                                      "PriceWithoutTax": null,
-                                      "Currency": "RUB",
-                                      "TransactionType": "Покупка"
+                                      "Currency": 7,
+                                      "Count": 1,
+                                      "CategoryId": 55
                                     }
                                   ]
 
