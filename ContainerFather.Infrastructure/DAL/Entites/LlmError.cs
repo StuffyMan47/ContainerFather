@@ -10,5 +10,5 @@ public class LlmError : BaseEntity
     public required string LlmRequest { get; set; }
     public required string LlmResponse { get; set; }
     public required string ErrorMessage { get; set; }
-    public AiContainerResponse? ContainerResponse { get; set; }
+    public string? ContainerResponse { get; set; }
 }

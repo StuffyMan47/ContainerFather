@@ -20,6 +20,8 @@ using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
 using ContainerFather.Core.UseCases.BroadcastMessages.Models;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Models;
+using ContainerFather.Core.UseCases.Containers.Interfaces;
+using ContainerFather.Core.UseCases.Containers.Models;
 using ContainerFather.Core.UseCases.Messages.Interfaces;
 using ContainerFather.Core.UseCases.Users.Interfaces;
 using ContainerFather.Core.UseCases.Users.Models;
@@ -53,6 +55,8 @@ public class TelegramBotService
     private readonly string[] _templateFolder = ["Files"];
     private readonly IAiTunnelClient _aiTunnelClient;
     private readonly ISiteClient _siteClient;
+    private readonly IContainerRepository _containerRepository;
+    private readonly ISitePostingService _sitePostingService;
 
     public TelegramBotService(
         IUserRepository userRepository,
@@ -65,6 +69,8 @@ public class TelegramBotService
         IWebHostEnvironment environment,
         IAiTunnelClient aiTunnelClient,
         ISiteClient siteClient,
+        ISitePostingService sitePostingService,
+        IContainerRepository containerRepository,
         IOptions<BotConfiguration> options)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -80,6 +86,8 @@ public class TelegramBotService
         _environment = environment;
         _aiTunnelClient = aiTunnelClient ?? throw new ArgumentNullException(nameof(aiTunnelClient));
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));
+        _sitePostingService = sitePostingService ?? throw new ArgumentNullException(nameof(sitePostingService));
+        _containerRepository = containerRepository ?? throw new ArgumentNullException(nameof(containerRepository));
     }
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
@@ -135,6 +143,21 @@ public class TelegramBotService
                 var buttonInfo = update.CallbackQuery.Data.Split(' ');
 
                 // Обработка callback для рассылки
+                if (callbackData.StartsWith("post_to_site_"))
+                {
+                    var dateStr = callbackData.Replace("post_to_site_", "");
+                    if (DateTimeOffset.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsedDate))
+                    {
+                        await _sitePostingService.ReadGoogleTable(parsedDate);
+                        await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, "Запрос на отправку контейнеров передан в обработку", cancellationToken: cancellationToken);
+                    }
+                    else
+                    {
+                        await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, "Ошибка парсинга даты", cancellationToken: cancellationToken);
+                    }
+                    return;
+                }
+                
                 if (callbackData.StartsWith("broadcast_chat"))
                 {
                     var groupId = long.Parse(buttonInfo[1]);
@@ -309,37 +332,37 @@ public class TelegramBotService
         var urlPattern = @"(https?://|www\.)[^\s]+";
         return Regex.IsMatch(text, urlPattern, RegexOptions.IgnoreCase);
     }
-
-    private bool ContainsLink(Message message)
-    {
-        // Проверяем entities в тексте сообщения
-        if (message.Entities != null)
-        {
-            foreach (var entity in message.Entities)
-            {
-                if (entity.Type == MessageEntityType.Url ||
-                    entity.Type == MessageEntityType.TextLink)
-                {
-                    return true;
-                }
-            }
-        }
-
-        // Проверяем entities в подписи (для медиа-сообщений)
-        if (message.CaptionEntities != null)
-        {
-            foreach (var entity in message.CaptionEntities)
-            {
-                if (entity.Type == MessageEntityType.Url ||
-                    entity.Type == MessageEntityType.TextLink)
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
+    
+    // private bool ContainsLink(Message message)
+    // {
+    //     // Проверяем entities в тексте сообщения
+    //     if (message.Entities != null)
+    //     {
+    //         foreach (var entity in message.Entities)
+    //         {
+    //             if (entity.Type == MessageEntityType.Url ||
+    //                 entity.Type == MessageEntityType.TextLink)
+    //             {
+    //                 return true;
+    //             }
+    //         }
+    //     }
+    //
+    //     // Проверяем entities в подписи (для медиа-сообщений)
+    //     if (message.CaptionEntities != null)
+    //     {
+    //         foreach (var entity in message.CaptionEntities)
+    //         {
+    //             if (entity.Type == MessageEntityType.Url ||
+    //                 entity.Type == MessageEntityType.TextLink)
+    //             {
+    //                 return true;
+    //             }
+    //         }
+    //     }
+    //
+    //     return false;
+    // }
 
     public async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
@@ -418,11 +441,14 @@ public class TelegramBotService
                 foreach (var x in objects)
                 {
                     var sourceId = new Guid();
+                    var city = CityGeoService.GetCityCoordinatesAsync(x.City);
                     var container = new ContainerRequestModel
                     {
                         SourceId = sourceId,
                         Availability = x.Availability,
                         City = x.City,
+                        Latitude = city.Latitude.Value,
+                        Longitude = city.Longitude.Value,
                         Date = DateTimeOffset.UtcNow,
                         Condition = x.ConditionName,
                         Currency = x.Currency.GetDescription(),
@@ -434,9 +460,26 @@ public class TelegramBotService
                         Username = $"@{message.From?.Username ?? message.From?.FirstName}",
                         CurrencyId = x.Currency
                     };
+                    containers.Add(container);
                 }
                 
                 // write to db
+                await _containerRepository.CreateContainerList(containers.Select(x=> new CreateContainerListRequest
+                {
+                    Id = x.SourceId,
+                    CategoryId = x.CategoryId,
+                    Quantity = x.Count,
+                    Condition = x.ConditionId,
+                    Username = x.Username,
+                    PriceType = x.PriceWithTax.HasValue ? PriceType.WithTax : PriceType.WithoutTax,
+                    Price = x.PriceWithTax.HasValue ? x.PriceWithTax.Value : x.PriceWithoutTax.Value,
+                    Currency = x.CurrencyId,
+                    Address = x.City,
+                    Latitude = x.Latitude,
+                    Longitude = x.Longitude,
+                    UserId = message.From?.Id
+                }).ToList(), cancellationToken);
+                
                 await WriteToGoogleSheets(containers);
                 // await SendContainersToSite(containers);
             }

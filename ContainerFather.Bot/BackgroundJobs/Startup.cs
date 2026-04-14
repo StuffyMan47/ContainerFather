@@ -63,5 +63,12 @@ internal static class Startup
             service => service.Execute(),
             Cron.Weekly(DayOfWeek.Monday, 10)
         );
+        
+        recurringJobManager.RemoveIfExists("confirm-message");
+        recurringJobManager.AddOrUpdate<SendConfirmToSitePostJob>(
+            "confirm-message",
+            service => service.Execute(),
+            Cron.Daily(15)
+        );
     }
 }

@@ -8,11 +8,17 @@ using ContainerFather.Core.Enums.SiteEnums;
 using ContainerFather.Core.Interfaces.Settings.Models;
 using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
+using ContainerFather.Core.UseCases.Containers.Interfaces;
 using ContainerFather.Core.UseCases.Messages.Interfaces;
 using ContainerFather.Core.UseCases.Users.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
+using Telegram.Bot.Types.ReplyMarkups;
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
+using Google.Apis.Sheets.v4;
+using Google.Apis.Sheets.v4.Data;
 
 namespace ContainerFather.Bot.Services;
 
@@ -28,6 +34,7 @@ public class SitePostingService : ISitePostingService
     private readonly BotConfiguration _botConfiguration;
     private readonly TelegramBotClient _botClient;
     private readonly ISiteClient _siteClient;
+    private readonly IContainerRepository _containerRepository;
     
     public SitePostingService(
         IUserRepository userRepository,
@@ -38,6 +45,7 @@ public class SitePostingService : ISitePostingService
         IGetStatisticHandler getStatisticHandler,
         IBroadcastService broadcastService,
         ISiteClient siteClient,
+        IContainerRepository containerRepository,
         IOptions<BotConfiguration> options)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -51,8 +59,120 @@ public class SitePostingService : ISitePostingService
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _botClient = new TelegramBotClient(options.Value.Token);
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));
+        _containerRepository = containerRepository ?? throw new ArgumentNullException(nameof(containerRepository));
     }
     
+    public async Task SendConfirmToAdmin()
+    {
+        var adminId = "714862316"; // Указан фиксированный ID админа, как запрошено
+        var currentDate = DateTimeOffset.UtcNow.ToString("dd.MM.yyyy HH:mm");
+        var messageText = $"Пора отметить чекбоксы в гугл таблице. Текущее время: {currentDate}";
+        
+        var inlineKeyboard = new InlineKeyboardMarkup(new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData(
+                    text: "Отправить выбранные предложения на сайт",
+                    callbackData: $"post_to_site_{currentDate}")
+            }
+        });
+
+        await _botClient.SendMessage(
+            chatId: adminId,
+            text: messageText,
+            replyMarkup: inlineKeyboard);
+    }
+
+    public async Task ReadGoogleTable(DateTimeOffset date)
+    {
+        var credential = GoogleCredential.FromJson(_botConfiguration.GoogleAuth.Key)
+            .CreateScoped(SheetsService.Scope.Spreadsheets);
+
+        var sheetsService = new SheetsService(new BaseClientService.Initializer()
+        {
+            HttpClientInitializer = credential,
+            ApplicationName = "ContainerFather.Bot",
+        });
+
+        var spreadsheetId = "1Q4aHnNPNFXxlwTxRNJk9IUf1m6V2wWV1HTc3rnu-ZbE";
+
+        try
+        {
+            // Получаем список листов
+            var spreadsheet = await sheetsService.Spreadsheets.Get(spreadsheetId).ExecuteAsync();
+            if (spreadsheet.Sheets == null || spreadsheet.Sheets.Count == 0)
+            {
+                return;
+            }
+
+            // Берем последний лист
+            var lastSheetTitle = spreadsheet.Sheets.Last().Properties.Title;
+            var range = $"{lastSheetTitle}!A:L"; // Запрашиваем данные с A по L колонки
+
+            var request = sheetsService.Spreadsheets.Values.Get(spreadsheetId, range);
+            var response = await request.ExecuteAsync();
+
+            if (response.Values == null || response.Values.Count == 0)
+            {
+                return;
+            }
+
+            var selectedIds = new List<Guid>();
+
+            // Пропускаем заголовок (если есть) или начинаем с первой строки
+            foreach (var row in response.Values)
+            {
+                // Проверяем, что в строке достаточно колонок (до L включительно, индекс 11)
+                if (row.Count > 11)
+                {
+                    var idStr = row[0]?.ToString(); // Колонка A
+                    var dateStr = row[2]?.ToString(); // Колонка C
+                    var isCheckedStr = row[11]?.ToString(); // Колонка L
+
+                    if (Guid.TryParse(idStr, out var id) &&
+                        !string.IsNullOrEmpty(dateStr) &&
+                        dateStr.Equals(date.ToString("dd.MM.yyyy HH:mm")) &&
+                        (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true || 
+                         isCheckedStr?.Equals("checked", StringComparison.OrdinalIgnoreCase) == true))
+                    {
+                        selectedIds.Add(id);
+                    }
+                }
+            }
+
+            if (selectedIds.Count > 0)
+            {
+                var containerResponses = await _containerRepository.GetContainerList(selectedIds, null, CancellationToken.None);
+                
+                var containersToPost = containerResponses.Select(c => new ContainerRequestModel
+                {
+                    SourceId = c.Id,
+                    ConditionId = c.Condition,
+                    City = c.Address,
+                    CurrencyId = c.Currency,
+                    Currency = c.Currency.ToString(),
+                    Count = c.Quantity,
+                    PriceWithoutTax = c.PriceType == PriceType.WithoutTax ? c.Price : null,
+                    PriceWithTax = c.PriceType == PriceType.WithTax ? c.Price : null,
+                    Username = c.Username,
+                    CategoryId = c.CategoryId,
+                    Size = c.CategoryId.ToString(), // Adding placeholder, real data might require separate parsing
+                    Type = c.CategoryId.ToString() // Adding placeholder, real data might require separate parsing
+                }).ToList();
+
+                await SendContainersToSite(containersToPost);
+            }
+        }
+        catch (Exception ex)
+        {
+            await _botClient.SendMessage(
+                "714862316",
+                "Не получилось прочитать Google таблицу: " +
+                $"{ex.Message}");
+        }
+    }
+
     public async Task SendContainersToSite(List<ContainerRequestModel> containers)
     {
         try

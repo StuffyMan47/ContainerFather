@@ -3,6 +3,7 @@ using System;
 using ContainerFather.Infrastructure.DAL.DbContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ContainerFather.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260414200236_add_container")]
+    partial class add_container
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -134,12 +137,12 @@ namespace ContainerFather.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("currency");
 
-                    b.Property<double>("Latitude")
-                        .HasColumnType("double precision")
+                    b.Property<float>("Latitude")
+                        .HasColumnType("real")
                         .HasColumnName("latitude");
 
-                    b.Property<double>("Longitude")
-                        .HasColumnType("double precision")
+                    b.Property<float>("Longitude")
+                        .HasColumnType("real")
                         .HasColumnName("longitude");
 
                     b.Property<long?>("MessageId")

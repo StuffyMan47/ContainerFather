@@ -14,12 +14,12 @@ public class Container
     public decimal Price { get; set; }
     public CurrencyEnum Currency { get; set; }
     public string Address { get; set; }
-    public float Latitude { get; set; }
-    public float Longitude { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
     public DateTimeOffset CreatedAt { get; init; } =  DateTimeOffset.UtcNow;
     public long? UserId { get; set; }
     public long? MessageId { get; set; }
 
-    public List<User> Users { get; set; } = [];
-    public List<Message> Messages { get; set; } = [];
+    public User User { get; set; }
+    public Message Message { get; set; }
 }

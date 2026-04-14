@@ -42,11 +42,16 @@ public partial class AppDbContext
         builder.HasMany(x => x.Users).WithMany(x => x.Chats);
     }
     
+    public void Configure(EntityTypeBuilder<LlmError> builder)
+    {
+        builder.HasKey(x => x.Id);
+    }
+    
     public void Configure(EntityTypeBuilder<Container> builder)
     {
         builder.HasKey(x => x.Id);
-        
-        builder.HasOne(x => x.Users).WithMany().HasForeignKey(x=>x.UserId);
-        builder.HasOne(x => x.Messages).WithMany().HasForeignKey(x=>x.MessageId);
+
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
+        builder.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId);
     }
 }
