@@ -4,7 +4,6 @@ using ContainerFather.Bot.SiteService;
 using ContainerFather.Bot.SiteService.Model;
 using ContainerFather.Core.Interfaces.Settings.Models;
 using ContainerFather.Infrastructure.Clients.Dto;
-using ContainerFather.Infrastructure.Clients.Site.Dto;
 using Microsoft.Extensions.Options;
 
 namespace ContainerFather.Infrastructure.Clients.Site;
@@ -18,7 +17,7 @@ public class SiteClient : ISiteClient
         _options = options;
     }
 
-    public async Task SendContainersInfo(List<SendContainersInfoRequest> request, CancellationToken cancellationToken)
+    public async Task<SendContainersInfoResponse> SendContainersInfo(List<SendContainersInfoRequest> request, CancellationToken cancellationToken)
     {
         using var client = new HttpClient();
         client.BaseAddress = new Uri(_options.Value.SiteUrl);
@@ -28,7 +27,7 @@ public class SiteClient : ISiteClient
         // Отправка запроса
         var json = JsonSerializer.Serialize(request,
             new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-        var response = await client.PostAsync("containers/add-list",
+        var response = await client.PostAsync("",
             new StringContent(json, Encoding.UTF8, "application/json"));
 
         // Обработка ответа
@@ -38,5 +37,6 @@ public class SiteClient : ISiteClient
         // Десериализация ответа
         var completion = JsonSerializer.Deserialize<SendContainersInfoResponse>(responseJson,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        return completion;
     }
 }

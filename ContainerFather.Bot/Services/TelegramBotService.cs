@@ -440,11 +440,13 @@ public class TelegramBotService
                 List<ContainerRequestModel> containers = [];
                 foreach (var x in objects)
                 {
-                    var sourceId = new Guid();
+                    var sourceId = Guid.NewGuid();
                     var city = CityGeoService.GetCityCoordinatesAsync(x.City);
                     var container = new ContainerRequestModel
                     {
                         SourceId = sourceId,
+                        ConditionId = x.ConditionId ?? ConditionEnum.Cw,
+                        CategoryId = x.CategoryId,
                         Availability = x.Availability,
                         City = x.City,
                         Latitude = city.Latitude.Value,
@@ -462,7 +464,7 @@ public class TelegramBotService
                     };
                     containers.Add(container);
                 }
-                
+                var userInfo = await _userRepository.GetByTelegramIdAsync(message.From.Id, cancellationToken);
                 // write to db
                 await _containerRepository.CreateContainerList(containers.Select(x=> new CreateContainerListRequest
                 {
@@ -477,7 +479,7 @@ public class TelegramBotService
                     Address = x.City,
                     Latitude = x.Latitude,
                     Longitude = x.Longitude,
-                    UserId = message.From?.Id
+                    UserId = userInfo.Id
                 }).ToList(), cancellationToken);
                 
                 await WriteToGoogleSheets(containers);
@@ -1339,7 +1341,30 @@ public class TelegramBotService
                             Properties = new SheetProperties
                             {
                                 Title = sheetName,
-                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 11 }
+                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 13 }
+                            }
+                        }
+                    },
+                    new Request
+                    {
+                        SetDataValidation = new SetDataValidationRequest
+                        {
+                            Range = new GridRange
+                            {
+                                SheetId = null, // Будет установлено после создания листа
+                                StartRowIndex = 1,      // Строка 2 (0-based)
+                                EndRowIndex = 5000,     // До строки 5000
+                                StartColumnIndex = 12,  // Колонка M
+                                EndColumnIndex = 13 // До конца колонки
+                            },
+                            Rule = new DataValidationRule
+                            {
+                                Condition = new BooleanCondition
+                                {
+                                    Type = "BOOLEAN"
+                                },
+                                Strict = true,
+                                ShowCustomUi = true // Показывать стандартный UI чекбокса
                             }
                         }
                     }
@@ -1353,9 +1378,9 @@ public class TelegramBotService
             {
                 new List<object> 
                 { 
-                    "Размер", "Тип", "Состояние", "Город", "Дата", 
+                   "Артикул", "Размер", "Тип", "Состояние", "Город", "Дата", 
                     "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
-                    "Валюта", "Тип сделки" 
+                    "Валюта", "Количество", "Публиковать объявление на сайт"
                 }
             };
         

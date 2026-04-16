@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace ContainerFather.Infrastructure.Clients.Site.Dto;
+namespace ContainerFather.Bot.SiteService.Model;
 
 public class SendContainersInfoResponse
 {

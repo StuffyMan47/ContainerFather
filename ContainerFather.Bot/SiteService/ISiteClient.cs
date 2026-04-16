@@ -4,5 +4,5 @@ namespace ContainerFather.Bot.SiteService;
 
 public interface ISiteClient
 {
-    Task SendContainersInfo(List<SendContainersInfoRequest> request, CancellationToken cancellationToken);
+    Task<SendContainersInfoResponse> SendContainersInfo(List<SendContainersInfoRequest> request, CancellationToken cancellationToken);
 }

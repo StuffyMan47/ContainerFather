@@ -26,4 +26,8 @@
       <ProjectReference Include="..\ContainerFather.Core\ContainerFather.Core.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Clients\Site\Dto\" />
+    </ItemGroup>
+
 </Project>

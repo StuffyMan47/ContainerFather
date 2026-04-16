@@ -1,3 +1,4 @@
+using System.Globalization;
 using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Bot.Helpers;
 using ContainerFather.Bot.Services.Dto;
@@ -64,7 +65,7 @@ public class SitePostingService : ISitePostingService
     
     public async Task SendConfirmToAdmin()
     {
-        var adminId = "714862316"; // Указан фиксированный ID админа, как запрошено
+        var adminId = "1037799385"; // Указан фиксированный ID админа, как запрошено
         var currentDate = DateTimeOffset.UtcNow.ToString("dd.MM.yyyy HH:mm");
         var messageText = $"Пора отметить чекбоксы в гугл таблице. Текущее время: {currentDate}";
         
@@ -108,7 +109,7 @@ public class SitePostingService : ISitePostingService
 
             // Берем последний лист
             var lastSheetTitle = spreadsheet.Sheets.Last().Properties.Title;
-            var range = $"{lastSheetTitle}!A:L"; // Запрашиваем данные с A по L колонки
+            var range = $"{lastSheetTitle}!A:M"; // Запрашиваем данные с A по M колонки
 
             var request = sheetsService.Spreadsheets.Values.Get(spreadsheetId, range);
             var response = await request.ExecuteAsync();
@@ -121,20 +122,21 @@ public class SitePostingService : ISitePostingService
             var selectedIds = new List<Guid>();
 
             // Пропускаем заголовок (если есть) или начинаем с первой строки
-            foreach (var row in response.Values)
+            foreach (var row in response.Values.Skip(1))
             {
                 // Проверяем, что в строке достаточно колонок (до L включительно, индекс 11)
                 if (row.Count > 11)
                 {
                     var idStr = row[0]?.ToString(); // Колонка A
-                    var dateStr = row[2]?.ToString(); // Колонка C
-                    var isCheckedStr = row[11]?.ToString(); // Колонка L
+                    var dateStr = row[5]?.ToString(); // Колонка C
+                    var isCheckedStr = row[12]?.ToString(); // Колонка L
 
                     if (Guid.TryParse(idStr, out var id) &&
                         !string.IsNullOrEmpty(dateStr) &&
-                        dateStr.Equals(date.ToString("dd.MM.yyyy HH:mm")) &&
-                        (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true || 
-                         isCheckedStr?.Equals("checked", StringComparison.OrdinalIgnoreCase) == true))
+                        DateTime.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", 
+                            CultureInfo.InvariantCulture, DateTimeStyles.None, out var rowDate) &&
+                        rowDate.Date == date.Date &&  // 👈 Сравнение только по дате (без времени)
+                        (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true))
                     {
                         selectedIds.Add(id);
                     }
@@ -202,7 +204,13 @@ public class SitePostingService : ISitePostingService
                 };
                 requests.Add(request);
             }
-            await _siteClient.SendContainersInfo(requests, CancellationToken.None);
+            var result = await _siteClient.SendContainersInfo(requests, CancellationToken.None);
+            
+            await _botClient.SendMessage(
+                "1037799385",
+                $"Результат отправки объявлений на сайт {result.Result}\n" +
+                $"Выложены записи с артикулами {string.Join(", ", result.Created)}\n" +
+                $"Ошибки: {string.Join(", ", result.Errors)}");
         }
         catch (Exception ex)
         {
