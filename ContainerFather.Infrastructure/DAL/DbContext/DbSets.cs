@@ -10,6 +10,8 @@ public partial class AppDbContext
     public DbSet<Message> Messages => Set<Message>();
     public DbSet<BroadcastMessage> BroadcastMessages => Set<BroadcastMessage>();
     public DbSet<Chat> Chats => Set<Chat>();
+    public DbSet<LlmError> LlmErrors => Set<LlmError>();
+    public DbSet<Container> Containers => Set<Container>();
     
     public void Configure(EntityTypeBuilder<User> builder)
     {
@@ -38,5 +40,18 @@ public partial class AppDbContext
     {
         builder.HasKey(x => x.Id);
         builder.HasMany(x => x.Users).WithMany(x => x.Chats);
+    }
+    
+    public void Configure(EntityTypeBuilder<LlmError> builder)
+    {
+        builder.HasKey(x => x.Id);
+    }
+    
+    public void Configure(EntityTypeBuilder<Container> builder)
+    {
+        builder.HasKey(x => x.Id);
+
+        builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
+        builder.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId);
     }
 }

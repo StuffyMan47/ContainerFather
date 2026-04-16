@@ -1,3 +1,5 @@
+using ContainerFather.Core.Enums.SiteEnums;
+
 namespace ContainerFather.Bot.AiTunnelService.Model;
 
 public class AiContainerResponse
@@ -15,17 +17,21 @@ public class AiContainerResponse
     /// <summary>
     /// Состояние
     /// </summary>
-    public string? Condition { get; set; }
+    public string? ConditionName { get; set; }
+    
+    public ConditionEnum? ConditionId { get; set; }
     
     /// <summary>
     /// Город
     /// </summary>
-    public string? City { get; set; }
+    public required string City { get; set; }
+    
+    public string? FullAddress { get; set; }
 
     /// <summary>
     /// Наличие
     /// </summary>
-    public string? Availability {get; set;}
+    public required string Availability {get; set;}
     
     /// <summary>
     /// Цена с НДС
@@ -40,10 +46,15 @@ public class AiContainerResponse
     /// <summary>
     /// Валюта
     /// </summary>
-    public required string Currency { get; set; }
+    public required CurrencyEnum Currency { get; set; }
     
     /// <summary>
-    /// Тип сделки
+    /// Количество
     /// </summary>
-    public required string TransactionType { get; set; }
+    public required int Count { get; set; }
+    
+    /// <summary>
+    /// Определенная категория для сайта
+    /// </summary>
+    public CategoryEnum CategoryId { get; set; }
 }

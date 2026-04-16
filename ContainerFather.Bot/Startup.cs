@@ -31,6 +31,8 @@ public static class Startup
         services.AddScoped<IStartCommandService, StartCommandService>();
         services.AddScoped<SendDailyMessageJob>();
         services.AddScoped<SendWeeklyMessageJob>();
+        services.AddScoped<SendConfirmToSitePostJob>();
+        services.AddScoped<ISitePostingService, SitePostingService>();
         
         services.AddBackgroundJobs(config);
         return services;

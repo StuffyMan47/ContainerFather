@@ -5,16 +5,23 @@ using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Bot.AiTunnelService.Model;
+using ContainerFather.Bot.Handlers;
+using ContainerFather.Bot.Helpers;
 using ContainerFather.Bot.Services.Dto;
 using ContainerFather.Bot.Services.Interfaces;
+using ContainerFather.Bot.SiteService;
+using ContainerFather.Bot.SiteService.Model;
 using ContainerFather.Bot.States;
 using ContainerFather.Core.Enums;
+using ContainerFather.Core.Enums.SiteEnums;
 using ContainerFather.Core.Interfaces.Settings;
 using ContainerFather.Core.Interfaces.Settings.Models;
 using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
 using ContainerFather.Core.UseCases.BroadcastMessages.Models;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
 using ContainerFather.Core.UseCases.Chats.Models;
+using ContainerFather.Core.UseCases.Containers.Interfaces;
+using ContainerFather.Core.UseCases.Containers.Models;
 using ContainerFather.Core.UseCases.Messages.Interfaces;
 using ContainerFather.Core.UseCases.Users.Interfaces;
 using ContainerFather.Core.UseCases.Users.Models;
@@ -47,6 +54,9 @@ public class TelegramBotService
     private readonly IWebHostEnvironment _environment;
     private readonly string[] _templateFolder = ["Files"];
     private readonly IAiTunnelClient _aiTunnelClient;
+    private readonly ISiteClient _siteClient;
+    private readonly IContainerRepository _containerRepository;
+    private readonly ISitePostingService _sitePostingService;
 
     public TelegramBotService(
         IUserRepository userRepository,
@@ -58,6 +68,9 @@ public class TelegramBotService
         IBroadcastService broadcastService,
         IWebHostEnvironment environment,
         IAiTunnelClient aiTunnelClient,
+        ISiteClient siteClient,
+        ISitePostingService sitePostingService,
+        IContainerRepository containerRepository,
         IOptions<BotConfiguration> options)
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
@@ -72,6 +85,9 @@ public class TelegramBotService
         _botClient = new TelegramBotClient(options.Value.Token);
         _environment = environment;
         _aiTunnelClient = aiTunnelClient ?? throw new ArgumentNullException(nameof(aiTunnelClient));
+        _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));
+        _sitePostingService = sitePostingService ?? throw new ArgumentNullException(nameof(sitePostingService));
+        _containerRepository = containerRepository ?? throw new ArgumentNullException(nameof(containerRepository));
     }
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
@@ -118,7 +134,7 @@ public class TelegramBotService
             // Обработка документов
             if (update.Type == UpdateType.Message && update.Message?.Type == MessageType.Document)
             {
-                await HandleDocumentMessageAsync(update.Message, cancellationToken);
+                // await HandleDocumentMessageAsync(update.Message, cancellationToken);
             }
 
             if (update.Type == UpdateType.CallbackQuery)
@@ -127,6 +143,21 @@ public class TelegramBotService
                 var buttonInfo = update.CallbackQuery.Data.Split(' ');
 
                 // Обработка callback для рассылки
+                if (callbackData.StartsWith("post_to_site_"))
+                {
+                    var dateStr = callbackData.Replace("post_to_site_", "");
+                    if (DateTimeOffset.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsedDate))
+                    {
+                        await _sitePostingService.ReadGoogleTable(parsedDate);
+                        await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, "Запрос на отправку контейнеров передан в обработку", cancellationToken: cancellationToken);
+                    }
+                    else
+                    {
+                        await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, "Ошибка парсинга даты", cancellationToken: cancellationToken);
+                    }
+                    return;
+                }
+                
                 if (callbackData.StartsWith("broadcast_chat"))
                 {
                     var groupId = long.Parse(buttonInfo[1]);
@@ -189,18 +220,18 @@ public class TelegramBotService
                             fromChatId: message.Chat.Id,
                             messageId: message.MessageId,
                             cancellationToken: cancellationToken);
-                        
+
                         await _botClient.DeleteMessage(
                             chatId: message.Chat.Id,
                             messageId: message.MessageId,
                             cancellationToken: cancellationToken);
-            
+
                         // Можно отправить предупреждение пользователю
                         await _botClient.SendMessage(
                             chatId: message.Chat.Id,
                             text: $"Запрещено отправлять ссылки в чате",
                             cancellationToken: cancellationToken);
-            
+
                         return; // Прерываем дальнейшую обработку
                     }
                     catch (ApiRequestException ex) when (ex.ErrorCode == 403)
@@ -211,7 +242,7 @@ public class TelegramBotService
                             "714862316",
                             "Бот не имеет прав на удаление сообщений в чате" +
                             $"{ex.Message}\n" +
-                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}" +
                             $"было написано {update.Message?.Text}",
                             cancellationToken: cancellationToken);
                     }
@@ -221,29 +252,31 @@ public class TelegramBotService
                             "714862316",
                             "Ошибка при удалении сообщения:" +
                             $"{ex.Message}\n" +
-                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                            $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}" +
                             $"было написано {update.Message?.Text}",
                             cancellationToken: cancellationToken);
                     }
                 }
-                
-                
+
+
                 var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id,
                     message.Chat.Title ?? "no name group",
                     cancellationToken);
                 var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
-                
+
                 //обработка через ИИ и запись в excel
                 List<string> stopWords = ["терминал", "куплю", "ищу", "предложите"];
-                if (!string.IsNullOrEmpty(text) && stopWords.Any(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)))
+                if (!string.IsNullOrEmpty(text) &&
+                    stopWords.Any(word => text.Contains(word, StringComparison.OrdinalIgnoreCase)))
                 {
                     //покупка
                 }
-                else if (!string.IsNullOrEmpty(text) && (message.Chat.Id == -1001558448106 || message.Chat.Id == -4996263366))
+                else if (!string.IsNullOrEmpty(text) &&
+                         (message.Chat.Id == -1001558448106 || message.Chat.Id == -4996263366))
                 {
                     await HandleMessage(message, cancellationToken);
                 }
-                
+
                 await _messageRepository.SaveMessageAsync(userId, text, chatId);
             }
             else
@@ -283,53 +316,53 @@ public class TelegramBotService
                 "714862316",
                 "Возникла ошибка при обработке запроса:" +
                 $"{ex.Message}\n" +
-                $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}"+
+                $"update: {update.Message?.From?.Username ?? "непонятно кого"}, update type : {update.Type}" +
                 $"было написано {update.Message?.Text}",
                 cancellationToken: cancellationToken);
             Console.WriteLine(ex);
         }
     }
-    
+
     private bool ContainsLink(string text)
     {
         if (string.IsNullOrWhiteSpace(text))
             return false;
-    
+
         // Регулярное выражение для поиска URL
         var urlPattern = @"(https?://|www\.)[^\s]+";
         return Regex.IsMatch(text, urlPattern, RegexOptions.IgnoreCase);
     }
     
-    private bool ContainsLink(Message message)
-    {
-        // Проверяем entities в тексте сообщения
-        if (message.Entities != null)
-        {
-            foreach (var entity in message.Entities)
-            {
-                if (entity.Type == MessageEntityType.Url || 
-                    entity.Type == MessageEntityType.TextLink)
-                {
-                    return true;
-                }
-            }
-        }
-    
-        // Проверяем entities в подписи (для медиа-сообщений)
-        if (message.CaptionEntities != null)
-        {
-            foreach (var entity in message.CaptionEntities)
-            {
-                if (entity.Type == MessageEntityType.Url || 
-                    entity.Type == MessageEntityType.TextLink)
-                {
-                    return true;
-                }
-            }
-        }
-    
-        return false;
-    }
+    // private bool ContainsLink(Message message)
+    // {
+    //     // Проверяем entities в тексте сообщения
+    //     if (message.Entities != null)
+    //     {
+    //         foreach (var entity in message.Entities)
+    //         {
+    //             if (entity.Type == MessageEntityType.Url ||
+    //                 entity.Type == MessageEntityType.TextLink)
+    //             {
+    //                 return true;
+    //             }
+    //         }
+    //     }
+    //
+    //     // Проверяем entities в подписи (для медиа-сообщений)
+    //     if (message.CaptionEntities != null)
+    //     {
+    //         foreach (var entity in message.CaptionEntities)
+    //         {
+    //             if (entity.Type == MessageEntityType.Url ||
+    //                 entity.Type == MessageEntityType.TextLink)
+    //             {
+    //                 return true;
+    //             }
+    //         }
+    //     }
+    //
+    //     return false;
+    // }
 
     public async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
@@ -365,10 +398,10 @@ public class TelegramBotService
                 cancellationToken: cancellationToken);
             throw;
         }
-        
+
         var allMissingFields = new HashSet<string>();
         bool hasInvalidRecords = false;
-    
+
         foreach (var obj in objects)
         {
             var missingFields = GetMissingFields(obj);
@@ -381,7 +414,7 @@ public class TelegramBotService
                 }
             }
         }
-        
+
         // Если есть неполные записи - запрашиваем дополнение информации
         if (hasInvalidRecords)
         {
@@ -389,7 +422,7 @@ public class TelegramBotService
             var missingFieldsList = string.Join(", ", allMissingFields);
             var responseText =
                 $"Дополните Ваше предложение необходимой информацией ({missingFieldsList}) Так выйдем на сделку быстрее";
-        
+
             var replyParams = new ReplyParameters { MessageId = message.MessageId };
             await _botClient.SendMessage(
                 chatId: message.Chat.Id,
@@ -404,20 +437,53 @@ public class TelegramBotService
         {
             if (objects != null && objects.Count > 0)
             {
-                await WriteToGoogleSheets(objects.Select(x=> new ContainerRequestModel
+                List<ContainerRequestModel> containers = [];
+                foreach (var x in objects)
                 {
-                    Availability = x.Availability,
-                    City = x.City,
-                    Date = DateTimeOffset.UtcNow,
-                    Condition = x.Condition,
-                    Currency = x.Currency,
-                    PriceWithoutTax = x.PriceWithoutTax,
-                    PriceWithTax = x.PriceWithTax,
-                    Size = x.Size,
-                    TransactionType = x.TransactionType,
-                    Type = x.Type,
-                    Username = $"@{message.From?.Username ?? message.From?.FirstName}",
-                }).ToList());
+                    var sourceId = Guid.NewGuid();
+                    var city = CityGeoService.GetCityCoordinatesAsync(x.City);
+                    var container = new ContainerRequestModel
+                    {
+                        SourceId = sourceId,
+                        ConditionId = x.ConditionId ?? ConditionEnum.Cw,
+                        CategoryId = x.CategoryId,
+                        Availability = x.Availability,
+                        City = x.City,
+                        Latitude = city.Latitude.Value,
+                        Longitude = city.Longitude.Value,
+                        Date = DateTimeOffset.UtcNow,
+                        Condition = x.ConditionName,
+                        Currency = x.Currency.GetDescription(),
+                        PriceWithoutTax = x.PriceWithoutTax,
+                        PriceWithTax = x.PriceWithTax,
+                        Size = x.Size,
+                        Type = x.Type,
+                        Count = x.Count,
+                        Username = $"@{message.From?.Username ?? message.From?.FirstName}",
+                        CurrencyId = x.Currency
+                    };
+                    containers.Add(container);
+                }
+                var userInfo = await _userRepository.GetByTelegramIdAsync(message.From.Id, cancellationToken);
+                // write to db
+                await _containerRepository.CreateContainerList(containers.Select(x=> new CreateContainerListRequest
+                {
+                    Id = x.SourceId,
+                    CategoryId = x.CategoryId,
+                    Quantity = x.Count,
+                    Condition = x.ConditionId,
+                    Username = x.Username,
+                    PriceType = x.PriceWithTax.HasValue ? PriceType.WithTax : PriceType.WithoutTax,
+                    Price = x.PriceWithTax.HasValue ? x.PriceWithTax.Value : x.PriceWithoutTax.Value,
+                    Currency = x.CurrencyId,
+                    Address = x.City,
+                    Latitude = x.Latitude,
+                    Longitude = x.Longitude,
+                    UserId = userInfo.Id
+                }).ToList(), cancellationToken);
+                
+                await WriteToGoogleSheets(containers);
+                // await SendContainersToSite(containers);
             }
         }
         catch (Exception ex)
@@ -432,7 +498,7 @@ public class TelegramBotService
             throw;
         }
     }
-    
+
     /// <summary>
     /// Проверяет наличие обязательных полей в записи контейнера.
     /// Возвращает список отсутствующих полей на русском языке для пользователя.
@@ -440,51 +506,44 @@ public class TelegramBotService
     private List<string> GetMissingFields(AiContainerResponse container)
     {
         var missingFields = new List<string>();
-    
+
         // Цена - обязательна: хотя бы одна из двух должна быть заполнена
-        if ((container.PriceWithTax == null || container.PriceWithTax == 0) && 
+        if ((container.PriceWithTax == null || container.PriceWithTax == 0) &&
             (container.PriceWithoutTax == null || container.PriceWithoutTax == 0))
         {
             missingFields.Add("стоимость контейнера");
         }
-        
+
         // Size - обязательное поле без дефолтного значения
-        if (string.IsNullOrWhiteSpace(container.Size) || 
+        if (string.IsNullOrWhiteSpace(container.Size) ||
             container.Size.Equals("null", StringComparison.OrdinalIgnoreCase))
         {
             missingFields.Add("размер контейнера");
         }
-    
+
         // Type - обязательное поле без дефолтного значения
-        if (string.IsNullOrWhiteSpace(container.Type) || 
+        if (string.IsNullOrWhiteSpace(container.Type) ||
             container.Type.Equals("null", StringComparison.OrdinalIgnoreCase))
         {
-            missingFields.Add("тип контейнера (HC, DC, NEW или CW)");
+            missingFields.Add("тип контейнера (HC, DC)");
         }
-    
+
         // City - обязательное поле без дефолтного значения
-        if (string.IsNullOrWhiteSpace(container.City) || 
+        if (string.IsNullOrWhiteSpace(container.City) ||
             container.City.Equals("null", StringComparison.OrdinalIgnoreCase))
         {
             missingFields.Add("город");
         }
-        
-        // TransactionType - обязательное поле без дефолтного значения
-        if (string.IsNullOrWhiteSpace(container.TransactionType) || 
-            container.TransactionType.Equals("null", StringComparison.OrdinalIgnoreCase))
-        {
-            missingFields.Add("тип операции (продажа/покупка)");
-        }
-        
+
         return missingFields;
     }
 
     private async Task<long> SaveOrUpdateUserAsync(
-        User user, 
-        long? chatId, 
-        CancellationToken cancellationToken, 
+        User user,
+        long? chatId,
+        CancellationToken cancellationToken,
         bool updateType = false
-        )
+    )
     {
         try
         {
@@ -580,6 +639,7 @@ public class TelegramBotService
                 {
                     await HandleSetWeeklyMessageAsync(message, command["/setweeklymessage ".Length..]);
                 }
+
                 break;
         }
     }
@@ -591,7 +651,7 @@ public class TelegramBotService
             OnlyActive = true,
             UserType = UserType.BotUser
         }, cancellationToken);
-        
+
         if (users == null || !users.Any())
         {
             await _botClient.SendMessage(
@@ -600,7 +660,7 @@ public class TelegramBotService
                 cancellationToken: cancellationToken);
             return;
         }
-        
+
         var sb = new StringBuilder();
         sb.AppendLine($"👥 <b>Подписчики бота ({users.Count} шт.)</b>");
         sb.AppendLine();
@@ -645,7 +705,7 @@ public class TelegramBotService
         await _botClient.SendMessage(
             message.Chat.Id,
             "Отправьте данные о ваших контейнерах любым удобным способом:\n— Excel-файл по нашему шаблону\n— Ваш прайс-лист в любом формате\n— Просто напишите в сообщении цены и наличие по городам");
-        
+
         const string templateName = "Example.xlsx";
         string filePath = Path.Combine([.. _templateFolder, templateName]);
 
@@ -873,7 +933,7 @@ public class TelegramBotService
         {
             new KeyboardButton[] { "Оставить как есть" },
             new KeyboardButton[] { "Изменить" },
-            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку"}
+            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку" }
         })
         {
             ResizeKeyboard = true,
@@ -909,7 +969,7 @@ public class TelegramBotService
         {
             new KeyboardButton[] { "Оставить как есть" },
             new KeyboardButton[] { "Изменить" },
-            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку"}
+            new KeyboardButton[] { "Удалить текущее сообщение и отменить рассылку" }
         })
         {
             ResizeKeyboard = true,
@@ -963,7 +1023,7 @@ public class TelegramBotService
         {
             await _broadcastMessageRepository.DeactivateBroadcastMessage(BroadcastMessagePeriodType.Weekly,
                 cancellationToken);
-            
+
             await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✅ Еженедельное сообщение удалено. Рассылка отключена до создания нового сообщения",
@@ -1045,12 +1105,12 @@ public class TelegramBotService
             _adminDialogService.SetDialogState(adminId, AdminDialogState.WaitingForNewDailyMessage);
             return;
         }
-        
+
         if (action == "Удалить текущее сообщение и отменить рассылку")
         {
             await _broadcastMessageRepository.DeactivateBroadcastMessage(BroadcastMessagePeriodType.Daily,
                 cancellationToken);
-            
+
             await _botClient.SendMessage(
                 chatId: message.Chat.Id,
                 text: "✅ Ежедневное сообщение удалено. Рассылка отключена до создания нового сообщения",
@@ -1100,57 +1160,55 @@ public class TelegramBotService
         _adminDialogService.CompleteDialog(adminId);
     }
 
-    private List<ContainerRequestModel> ParseExcel(Stream stream, string username)
-    {
-        var result = new List<ContainerRequestModel>();
-
-        try
-        {
-            using var workbook = new XLWorkbook(stream);
-            var worksheet = workbook.Worksheet(1);
-            var rows = worksheet.RangeUsed().RowsUsed().Skip(1); // Пропускаем заголовок
-
-            var rowNumber = 2; // Начинаем с строки 2 (после заголовка)
-            foreach (var row in rows)
-            {
-                var model = new ContainerRequestModel
-                {
-                    Size = row.Cell(1).Value.ToString()?.Trim() ?? "", // A
-                    Type = row.Cell(2).Value.ToString()?.Trim() ?? "", // B
-                    Condition = row.Cell(3).Value.ToString()?.Trim() ?? "", // C
-                    City = row.Cell(4).Value.ToString()?.Trim() ?? "", // D
-                    Availability = row.Cell(5).Value.ToString()?.Trim() ?? "", // E
-                    PriceWithTax = decimal.Parse(row.Cell(6).Value.ToString()?.Trim() ?? String.Empty), // D
-                    PriceWithoutTax = decimal.Parse(row.Cell(7).Value.ToString()?.Trim() ?? String.Empty), // G
-                    Currency = row.Cell(8).Value.ToString()?.Trim() ?? "", // H
-                    TransactionType = row.Cell(9).Value.ToString()?.Trim() ?? "", // I
-                    Date = DateTimeOffset.UtcNow,
-                    Username = $"@{username}"
-                };
-
-                // Валидация обязательных полей
-                if (string.IsNullOrWhiteSpace(model.Size) ||
-                    string.IsNullOrWhiteSpace(model.Type) ||
-                    string.IsNullOrWhiteSpace(model.City) ||
-                    string.IsNullOrWhiteSpace(model.Username))
-                {
-                    rowNumber++;
-                    continue;
-                }
-
-                result.Add(model);
-
-
-                rowNumber++;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.Message);
-        }
-
-        return result;
-    }
+    // private List<ContainerRequestModel> ParseExcel(Stream stream, string username)
+    // {
+    //     var result = new List<ContainerRequestModel>();
+    //
+    //     try
+    //     {
+    //         using var workbook = new XLWorkbook(stream);
+    //         var worksheet = workbook.Worksheet(1);
+    //         var rows = worksheet.RangeUsed().RowsUsed().Skip(1); // Пропускаем заголовок
+    //
+    //         var rowNumber = 2; // Начинаем с строки 2 (после заголовка)
+    //         foreach (var row in rows)
+    //         {
+    //             var model = new ContainerRequestModel
+    //             {
+    //                 Size = row.Cell(1).Value.ToString()?.Trim() ?? "", // A
+    //                 Type = row.Cell(2).Value.ToString()?.Trim() ?? "", // B
+    //                 Condition = row.Cell(3).Value.ToString()?.Trim() ?? "", // C
+    //                 City = row.Cell(4).Value.ToString()?.Trim() ?? "", // D
+    //                 Availability = row.Cell(5).Value.ToString()?.Trim() ?? "", // E
+    //                 PriceWithTax = decimal.Parse(row.Cell(6).Value.ToString()?.Trim() ?? String.Empty), // D
+    //                 PriceWithoutTax = decimal.Parse(row.Cell(7).Value.ToString()?.Trim() ?? String.Empty), // G
+    //                 Currency = row.Cell(8).Value.ToString()?.Trim() ?? "", // H
+    //                 Count = int.Parse(row.Cell(10).Value.ToString()?.Trim() ?? String.Empty),
+    //                 Date = DateTimeOffset.UtcNow,
+    //                 Username = $"@{username}",
+    //             };
+    //
+    //             // Валидация обязательных полей
+    //             if (string.IsNullOrWhiteSpace(model.Size) ||
+    //                 string.IsNullOrWhiteSpace(model.Type) ||
+    //                 string.IsNullOrWhiteSpace(model.City) ||
+    //                 string.IsNullOrWhiteSpace(model.Username))
+    //             {
+    //                 rowNumber++;
+    //                 continue;
+    //             }
+    //
+    //             result.Add(model);
+    //             rowNumber++;
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine(ex.Message);
+    //     }
+    //
+    //     return result;
+    // }
 
     private async Task WriteToGoogleSheets(List<ContainerRequestModel> models)
     {
@@ -1188,6 +1246,7 @@ public class TelegramBotService
 
                 var row = new List<object>
                 {
+                    model.SourceId.ToString(),
                     model.Size,
                     model.Type,
                     model.Condition ?? string.Empty,
@@ -1200,7 +1259,8 @@ public class TelegramBotService
                         : string.Empty, // Форматирование цены как валюты
                     model.PriceWithoutTax.HasValue ? model.PriceWithoutTax.Value : string.Empty,
                     model.Currency,
-                    model.TransactionType,
+                    model.Count,
+                    model.IsPublicToSite
                 };
                 values.Add(row);
             }
@@ -1281,7 +1341,30 @@ public class TelegramBotService
                             Properties = new SheetProperties
                             {
                                 Title = sheetName,
-                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 11 }
+                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 13 }
+                            }
+                        }
+                    },
+                    new Request
+                    {
+                        SetDataValidation = new SetDataValidationRequest
+                        {
+                            Range = new GridRange
+                            {
+                                SheetId = null, // Будет установлено после создания листа
+                                StartRowIndex = 1,      // Строка 2 (0-based)
+                                EndRowIndex = 5000,     // До строки 5000
+                                StartColumnIndex = 12,  // Колонка M
+                                EndColumnIndex = 13 // До конца колонки
+                            },
+                            Rule = new DataValidationRule
+                            {
+                                Condition = new BooleanCondition
+                                {
+                                    Type = "BOOLEAN"
+                                },
+                                Strict = true,
+                                ShowCustomUi = true // Показывать стандартный UI чекбокса
                             }
                         }
                     }
@@ -1295,9 +1378,9 @@ public class TelegramBotService
             {
                 new List<object> 
                 { 
-                    "Размер", "Тип", "Состояние", "Город", "Дата", 
+                   "Артикул", "Размер", "Тип", "Состояние", "Город", "Дата", 
                     "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
-                    "Валюта", "Тип сделки" 
+                    "Валюта", "Количество", "Публиковать объявление на сайт"
                 }
             };
         
@@ -1324,108 +1407,111 @@ public class TelegramBotService
     }
     
     private async Task ForwardUserMessageToAdminsAsync(Message message, CancellationToken cancellationToken)
-{
-    try
     {
-        // Проверяем, что это не Excel файл
-        var isExcelFile = message.Type == MessageType.Document && 
-                         message.Document?.FileName?.ToLower().EndsWith(".xlsx") == true;
-
-        if (!isExcelFile)
+        try
         {
-            var userInfo = $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
+            // Проверяем, что это не Excel файл
+            var isExcelFile = message.Type == MessageType.Document &&
+                              message.Document?.FileName?.ToLower().EndsWith(".xlsx") == true;
 
-            foreach (var adminId in _botConfiguration.AdminIds)
+            if (!isExcelFile)
             {
-                try
+                var userInfo =
+                    $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
+
+                foreach (var adminId in _botConfiguration.AdminIds)
                 {
-                    // Сначала отправляем информацию о пользователе
-                    await _botClient.SendMessage(
-                        chatId: adminId,
-                        text: userInfo,
-                        cancellationToken: cancellationToken);
+                    try
+                    {
+                        // Сначала отправляем информацию о пользователе
+                        await _botClient.SendMessage(
+                            chatId: adminId,
+                            text: userInfo,
+                            cancellationToken: cancellationToken);
 
-                    // Пересылаем само сообщение
-                    await _botClient.ForwardMessage(
-                        chatId: adminId,
-                        fromChatId: message.Chat.Id,
-                        messageId: message.MessageId,
-                        cancellationToken: cancellationToken);
+                        // Пересылаем само сообщение
+                        await _botClient.ForwardMessage(
+                            chatId: adminId,
+                            fromChatId: message.Chat.Id,
+                            messageId: message.MessageId,
+                            cancellationToken: cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Не удалось переслать сообщение админу {adminId}", ex.Message);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Не удалось переслать сообщение админу {adminId}", ex.Message);
-                }
             }
         }
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine("Ошибка при пересылке сообщения от пользователя {message.From?.Id}", ex.Message);
-    }
-}
-
-private async Task HandleDocumentMessageAsync(Message message, CancellationToken cancellationToken)
-{
-    try
-    {
-        var fileId = message.Document.FileId;
-        await using var ms = new MemoryStream();
-        var tgFile = await _botClient.GetInfoAndDownloadFile(fileId, ms, cancellationToken);
-
-        var result = message.Document.FileName!.ToLower() switch
+        catch (Exception ex)
         {
-            var name when name.EndsWith(".xlsx") => ParseExcel(ms, message.From.Username),
-            _ => throw new Exception("Неподдерживаемый формат файла. Поддерживаются только CSV и XLSX.")
-        };
-
-        if (result.Any())
-        {
-            await WriteToGoogleSheets(result);
-            await _botClient.SendMessage(message.Chat.Id,
-                $"Данные записаны", cancellationToken: cancellationToken);
-
-            foreach (var adminId in _botConfiguration.AdminIds)
-            {
-                // Сначала отправляем информацию о пользователе
-                await _botClient.SendMessage(
-                    chatId: adminId,
-                    text: $"Данные от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username}) записаны в Google таблицу",
-                    cancellationToken: cancellationToken);
-            }
-        }
-        else
-        {
-            var userInfo = $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
-            
-            foreach (var adminId in _botConfiguration.AdminIds)
-            {
-                // Сначала отправляем информацию о пользователе
-                await _botClient.SendMessage(
-                    chatId: adminId,
-                    text: userInfo,
-                    cancellationToken: cancellationToken);
-                
-                await _botClient.ForwardMessage(
-                    chatId: adminId,
-                    fromChatId: message.Chat.Id,
-                    messageId: message.MessageId,
-                    cancellationToken: cancellationToken);
-            }
+            Console.WriteLine("Ошибка при пересылке сообщения от пользователя {message.From?.Id}", ex.Message);
         }
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine("Ошибка обработки документа", ex.Message);
-        
-        // Отправляем ошибку только админам или пользователю, если он админ
-        if (_botConfiguration.AdminIds.Contains(message.From.Id))
-        {
-            await _botClient.SendMessage(
-                chatId: message.Chat.Id,
-                text: $"Ошибка: {ex.Message}",
-                cancellationToken: cancellationToken);
-        }
-    }
-}
+
+    // private async Task HandleDocumentMessageAsync(Message message, CancellationToken cancellationToken)
+    // {
+    //     try
+    //     {
+    //         var fileId = message.Document.FileId;
+    //         await using var ms = new MemoryStream();
+    //         var tgFile = await _botClient.GetInfoAndDownloadFile(fileId, ms, cancellationToken);
+    //
+    //         var result = message.Document.FileName!.ToLower() switch
+    //         {
+    //             var name when name.EndsWith(".xlsx") => ParseExcel(ms, message.From.Username),
+    //             _ => throw new Exception("Неподдерживаемый формат файла. Поддерживаются только CSV и XLSX.")
+    //         };
+    //
+    //         if (result.Any())
+    //         {
+    //             await WriteToGoogleSheets(result);
+    //             await _botClient.SendMessage(message.Chat.Id,
+    //                 $"Данные записаны", cancellationToken: cancellationToken);
+    //
+    //             foreach (var adminId in _botConfiguration.AdminIds)
+    //             {
+    //                 // Сначала отправляем информацию о пользователе
+    //                 await _botClient.SendMessage(
+    //                     chatId: adminId,
+    //                     text:
+    //                     $"Данные от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username}) записаны в Google таблицу",
+    //                     cancellationToken: cancellationToken);
+    //             }
+    //         }
+    //         else
+    //         {
+    //             var userInfo =
+    //                 $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
+    //
+    //             foreach (var adminId in _botConfiguration.AdminIds)
+    //             {
+    //                 // Сначала отправляем информацию о пользователе
+    //                 await _botClient.SendMessage(
+    //                     chatId: adminId,
+    //                     text: userInfo,
+    //                     cancellationToken: cancellationToken);
+    //
+    //                 await _botClient.ForwardMessage(
+    //                     chatId: adminId,
+    //                     fromChatId: message.Chat.Id,
+    //                     messageId: message.MessageId,
+    //                     cancellationToken: cancellationToken);
+    //             }
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         Console.WriteLine("Ошибка обработки документа", ex.Message);
+    //
+    //         // Отправляем ошибку только админам или пользователю, если он админ
+    //         if (_botConfiguration.AdminIds.Contains(message.From.Id))
+    //         {
+    //             await _botClient.SendMessage(
+    //                 chatId: message.Chat.Id,
+    //                 text: $"Ошибка: {ex.Message}",
+    //                 cancellationToken: cancellationToken);
+    //         }
+    //     }
+    // }
 }
