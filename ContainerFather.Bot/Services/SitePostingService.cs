@@ -183,6 +183,7 @@ public class SitePostingService : ISitePostingService
             foreach (var container in containers)
             {
                 var city = CityGeoService.GetCityCoordinatesAsync(container.City);
+                // var description = DescriptionHelper
                 var request = new SendContainersInfoRequest
                 {
                     SourceId = container.SourceId,
@@ -192,7 +193,7 @@ public class SitePostingService : ISitePostingService
                     Quantity = container.Count,
                     PhoneNumber = null,
                     PriceType = container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
-                    Price = container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value : container.PriceWithTax.Value,
+                    Price = container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value * (decimal)1.1 : container.PriceWithTax.Value * (decimal)1.1,
                     Location = new LocationDetails()
                     {
                         Latitude = city.Latitude.Value,
@@ -200,7 +201,7 @@ public class SitePostingService : ISitePostingService
                     },
                     Username = container.Username,
                     CategoryId = container.CategoryId,
-                    
+                    // Description = container.Description,
                 };
                 requests.Add(request);
             }
@@ -211,12 +212,22 @@ public class SitePostingService : ISitePostingService
                 $"Результат отправки объявлений на сайт {result.Result}\n" +
                 $"Выложены записи с артикулами {string.Join(", ", result.Created)}\n" +
                 $"Ошибки: {string.Join(", ", result.Errors)}");
+            
+            await _botClient.SendMessage(
+                "714862316",
+                $"Результат отправки объявлений на сайт {result.Result}\n" +
+                $"Выложены записи с артикулами {string.Join(", ", result.Created)}\n" +
+                $"Ошибки: {string.Join(", ", result.Errors)}");
         }
         catch (Exception ex)
         {
             await _botClient.SendMessage(
                 "714862316",
-                "Не получилось отправить контейнеры на сайт " +
+                "Не получилось отправить контейнеры на сайт \n" +
+                $"{ex.Message}");
+            await _botClient.SendMessage(
+                "1037799385",
+                "Не получилось отправить контейнеры на сайт \n" +
                 $"{ex.Message}");
         }
     }

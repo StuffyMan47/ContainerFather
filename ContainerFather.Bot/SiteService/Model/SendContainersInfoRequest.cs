@@ -70,6 +70,9 @@ public class SendContainersInfoRequest
     /// </summary>
     [JsonPropertyName("address")]
     public required string Address { get; set; }
+    
+    // [JsonPropertyName("description")]
+    // public required string Description { get; set; }
 }
 
 public class LocationDetails
