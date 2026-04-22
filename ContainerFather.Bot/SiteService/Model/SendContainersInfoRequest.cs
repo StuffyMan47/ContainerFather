@@ -71,8 +71,8 @@ public class SendContainersInfoRequest
     [JsonPropertyName("address")]
     public required string Address { get; set; }
     
-    // [JsonPropertyName("description")]
-    // public required string Description { get; set; }
+    [JsonPropertyName("description")]
+    public required string Description { get; set; }
 }
 
 public class LocationDetails

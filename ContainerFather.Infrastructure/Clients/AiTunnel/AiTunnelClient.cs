@@ -26,7 +26,7 @@ public class AiTunnelClient : IAiTunnelClient
         // Формирование запроса
         var request = new
         {
-            model = "deepseek/deepseek-v3.2",
+            model = "qwen/qwen3.5-9b",
             messages = new[]
             {
                 new { role = "user", content = $"{Prompt1} Вот само сообщение: {message}" }

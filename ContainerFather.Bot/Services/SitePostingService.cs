@@ -183,7 +183,14 @@ public class SitePostingService : ISitePostingService
             foreach (var container in containers)
             {
                 var city = CityGeoService.GetCityCoordinatesAsync(container.City);
-                // var description = DescriptionHelper
+                var description = DescriptionHelper.GenerateDescription(
+                    container.ConditionId, 
+                    container.CurrencyId,
+                    container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
+                    container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value * (decimal)1.1 : container.PriceWithTax.Value * (decimal)1.1,
+                    container.City,
+                    container.CategoryId);
+                
                 var request = new SendContainersInfoRequest
                 {
                     SourceId = container.SourceId,
@@ -201,7 +208,7 @@ public class SitePostingService : ISitePostingService
                     },
                     Username = container.Username,
                     CategoryId = container.CategoryId,
-                    // Description = container.Description,
+                    Description = description,
                 };
                 requests.Add(request);
             }

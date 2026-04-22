@@ -210,7 +210,12 @@ public class TelegramBotService
             // Обработка сообщений в чатах
             if (message.Chat.Type is ChatType.Group or ChatType.Supergroup)
             {
-                if (ContainsLink(message.Text) || ContainsLink(message.Caption) || message.Entities.Any(x=>x.Type == MessageEntityType.TextLink))
+                bool HasTextLinkEntities(Message message) => 
+                    message.Entities?.Any(x => x.Type == MessageEntityType.TextLink) ?? false;
+
+                if (ContainsLink(message.Text) 
+                    || ContainsLink(message.Caption) 
+                    || HasTextLinkEntities(message))
                 {
                     try
                     {
