@@ -1271,7 +1271,7 @@ public class TelegramBotService
             }
 
             // Динамическое определение диапазона
-            var range = $"{sheetName}!A2:K{values.Count + 1}";
+            var range = $"{sheetName}!A:M";
 
             var valueRange = new ValueRange
             {
@@ -1359,7 +1359,7 @@ public class TelegramBotService
                                 SheetId = null, // Будет установлено после создания листа
                                 StartRowIndex = 1,      // Строка 2 (0-based)
                                 EndRowIndex = 5000,     // До строки 5000
-                                StartColumnIndex = 12,  // Колонка M
+                                StartColumnIndex = 1,  // Колонка A
                                 EndColumnIndex = 13 // До конца колонки
                             },
                             Rule = new DataValidationRule
@@ -1390,7 +1390,7 @@ public class TelegramBotService
             };
         
             var headerRange = new ValueRange { Values = headers };
-            var headerRequest = service.Spreadsheets.Values.Update(headerRange, spreadsheetId, $"{sheetName}!A1:K1");
+            var headerRequest = service.Spreadsheets.Values.Update(headerRange, spreadsheetId, $"{sheetName}!A1:M1");
             headerRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
             await headerRequest.ExecuteAsync();
         }

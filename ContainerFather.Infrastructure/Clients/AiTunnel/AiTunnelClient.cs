@@ -20,18 +20,23 @@ public class AiTunnelClient : IAiTunnelClient
     {
         using var client = new HttpClient();
         client.BaseAddress = new Uri(_options.Value.AiUri);
+        client.Timeout = TimeSpan.FromSeconds(300);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_options.Value.AiToken}");
         client.DefaultRequestHeaders.Add("User-Agent", "CSharpClient/1.0");
 
         // Формирование запроса
         var request = new
         {
-            model = "qwen/qwen3.5-9b",
+            model = "deepseek/deepseek-v3.2",
             messages = new[]
             {
                 new { role = "user", content = $"{Prompt1} Вот само сообщение: {message}" }
             },
-            max_tokens = 8192
+            max_tokens = 10000,
+            chat_template_kwargs = new
+            {
+              enable_thinking = false,
+            }
         };
 
         // Отправка запроса
