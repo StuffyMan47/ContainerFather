@@ -9,7 +9,7 @@ public class SendContainersInfoRequest
     /// Артикул
     /// </summary>
     [JsonPropertyName("sourceId")]
-    public Guid SourceId { get; set; }
+    public string SourceId { get; set; }
     
     /// <summary>
     /// Содержит инфу о типе и размере контейнера

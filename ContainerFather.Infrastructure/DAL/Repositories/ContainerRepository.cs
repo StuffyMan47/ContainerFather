@@ -13,6 +13,7 @@ public class ContainerRepository(AppDbContext dbContext) : IContainerRepository
         dbContext.Containers.AddRange(containers.Select(x=>new Container
         {
             Id = x.Id,
+            ArticleId = x.ArticleId,
             Address = x.Address,
             CategoryId = x.CategoryId,
             CreatedAt = DateTime.UtcNow,
@@ -29,8 +30,32 @@ public class ContainerRepository(AppDbContext dbContext) : IContainerRepository
         }));
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+    
+    public async Task CreateContainer(CreateContainerListRequest container, CancellationToken cancellationToken)
+    {
+        var cont = new Container
+        {
+            Id = container.Id,
+            ArticleId = container.ArticleId,
+            Address = container.Address,
+            CategoryId = container.CategoryId,
+            CreatedAt = DateTime.UtcNow,
+            Condition = container.Condition,
+            Currency = container.Currency,
+            Latitude = container.Latitude,
+            Longitude = container.Longitude,
+            Quantity = container.Quantity,
+            Username = container.Username,
+            PriceType = container.PriceType,
+            Price = container.Price,
+            MessageId = container.MessageId,
+            UserId = container.UserId,
+        };
+        dbContext.Containers.Add(cont);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 
-    public async Task<List<GetContainerListResponse>> GetContainerList(List<Guid>? ids, DateTimeOffset? date, CancellationToken cancellationToken)
+    public async Task<List<GetContainerListResponse>> GetContainerList(List<long>? ids, DateTimeOffset? date, CancellationToken cancellationToken)
     {
         var result = dbContext.Containers
             .AsNoTracking()
@@ -38,7 +63,7 @@ public class ContainerRepository(AppDbContext dbContext) : IContainerRepository
 
         if (ids != null)
         {
-            result = result.Where(x => ids.Contains(x.Id));
+            result = result.Where(x => ids.Contains(x.ArticleId));
         }
 
         if (date.HasValue)
@@ -53,6 +78,7 @@ public class ContainerRepository(AppDbContext dbContext) : IContainerRepository
             .Select(x=> new GetContainerListResponse
             {
                 Id = x.Id,
+                ArticleId = x.ArticleId,
                 Address = x.Address,
                 CategoryId = x.CategoryId,
                 CreatedAt = DateTime.UtcNow,

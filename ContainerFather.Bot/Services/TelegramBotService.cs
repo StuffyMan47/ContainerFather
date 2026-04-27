@@ -369,6 +369,15 @@ public class TelegramBotService
     //     return false;
     // }
 
+    private static long GenerateArticleId()
+    {
+        // Generates an 8-9 digit number using time components and a small random part
+        var now = DateTime.UtcNow;
+        var timePart = (now.DayOfYear * 100000) + (now.Hour * 1000) + (now.Minute * 10) + (now.Second % 10);
+        var randomPart = new Random().Next(10, 99);
+        return long.Parse($"{timePart}{randomPart}");
+    }
+
     public async Task HandleMessage(Message message, CancellationToken cancellationToken)
     {
         List<AiContainerResponse> objects = new List<AiContainerResponse>();
@@ -446,10 +455,12 @@ public class TelegramBotService
                 foreach (var x in objects)
                 {
                     var sourceId = Guid.NewGuid();
+                    var articleId = GenerateArticleId();
                     var city = CityGeoService.GetCityCoordinatesAsync(x.City);
                     var container = new ContainerRequestModel
                     {
                         SourceId = sourceId,
+                        ArticleId = articleId,
                         ConditionId = x.ConditionId ?? ConditionEnum.Cw,
                         CategoryId = x.CategoryId,
                         Availability = x.Availability,
@@ -474,6 +485,7 @@ public class TelegramBotService
                 await _containerRepository.CreateContainerList(containers.Select(x=> new CreateContainerListRequest
                 {
                     Id = x.SourceId,
+                    ArticleId = x.ArticleId,
                     CategoryId = x.CategoryId,
                     Quantity = x.Count,
                     Condition = x.ConditionId,
@@ -1251,7 +1263,7 @@ public class TelegramBotService
 
                 var row = new List<object>
                 {
-                    model.SourceId.ToString(),
+                    model.ArticleId.ToString(),
                     model.Size,
                     model.Type,
                     model.Condition ?? string.Empty,

@@ -56,7 +56,7 @@ public static class DescriptionHelper
                 $"Неподдерживаемое значение валюты: {(int)currency}")
         };
         string priceTypeString = priceType == PriceType.WithoutTax ? "без НДС" : "с НДС";
-        string result = $"Продается {conditionString} {typeString} в {city}. Цена {priceString} {currencyString} {priceTypeString}.";
+        string result = $"Продается {conditionString} {typeString} в городе {city}. Цена {priceString} {currencyString} {priceTypeString}.";
         return result;
     }
 }

@@ -6,6 +6,10 @@ namespace ContainerFather.Infrastructure.DAL.Entites;
 public class Container
 {
     public Guid Id { get; set; }
+    
+    // Unique ID for human-readable reference generated in code
+    public long ArticleId { get; set; }
+    
     public CategoryEnum CategoryId { get; set; }
     public required int Quantity { get; set; }
     public ConditionEnum Condition { get; set; }

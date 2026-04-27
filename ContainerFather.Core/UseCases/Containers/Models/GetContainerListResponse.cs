@@ -5,6 +5,7 @@ namespace ContainerFather.Core.UseCases.Containers.Models;
 public class GetContainerListResponse
 {
     public Guid Id { get; set; }
+    public long ArticleId { get; set; }
     public CategoryEnum CategoryId { get; set; }
     public required int Quantity { get; set; }
     public ConditionEnum Condition { get; set; }

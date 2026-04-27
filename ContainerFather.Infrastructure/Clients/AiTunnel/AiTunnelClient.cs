@@ -20,7 +20,7 @@ public class AiTunnelClient : IAiTunnelClient
     {
         using var client = new HttpClient();
         client.BaseAddress = new Uri(_options.Value.AiUri);
-        client.Timeout = TimeSpan.FromSeconds(300);
+        client.Timeout = TimeSpan.FromSeconds(600);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {_options.Value.AiToken}");
         client.DefaultRequestHeaders.Add("User-Agent", "CSharpClient/1.0");
 

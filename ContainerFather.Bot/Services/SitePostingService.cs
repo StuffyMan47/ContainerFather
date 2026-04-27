@@ -119,7 +119,7 @@ public class SitePostingService : ISitePostingService
                 return;
             }
 
-            var selectedIds = new List<Guid>();
+            var selectedIds = new List<long>();
 
             // Пропускаем заголовок (если есть) или начинаем с первой строки
             foreach (var row in response.Values.Skip(1))
@@ -131,11 +131,11 @@ public class SitePostingService : ISitePostingService
                     var dateStr = row[5]?.ToString(); // Колонка C
                     var isCheckedStr = row[12]?.ToString(); // Колонка L
 
-                    if (Guid.TryParse(idStr, out var id) &&
+                    if (long.TryParse(idStr, out var id) &&
                         !string.IsNullOrEmpty(dateStr) &&
                         DateTime.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", 
                             CultureInfo.InvariantCulture, DateTimeStyles.None, out var rowDate) &&
-                        rowDate.Date == date.Date &&  // 👈 Сравнение только по дате (без времени)
+                        rowDate.Date == date.Date &&  // Сравнение только по дате (без времени)
                         (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true))
                     {
                         selectedIds.Add(id);
@@ -150,8 +150,11 @@ public class SitePostingService : ISitePostingService
                 var containersToPost = containerResponses.Select(c => new ContainerRequestModel
                 {
                     SourceId = c.Id,
+                    ArticleId = c.ArticleId,
                     ConditionId = c.Condition,
                     City = c.Address,
+                    Longitude = c.Longitude,
+                    Latitude = c.Latitude, 
                     CurrencyId = c.Currency,
                     Currency = c.Currency.ToString(),
                     Count = c.Quantity,
@@ -159,8 +162,8 @@ public class SitePostingService : ISitePostingService
                     PriceWithTax = c.PriceType == PriceType.WithTax ? c.Price : null,
                     Username = c.Username,
                     CategoryId = c.CategoryId,
-                    Size = c.CategoryId.ToString(), // Adding placeholder, real data might require separate parsing
-                    Type = c.CategoryId.ToString() // Adding placeholder, real data might require separate parsing
+                    Size = c.CategoryId.ToString(),
+                    Type = c.CategoryId.ToString()
                 }).ToList();
 
                 await SendContainersToSite(containersToPost);
@@ -193,7 +196,7 @@ public class SitePostingService : ISitePostingService
                 
                 var request = new SendContainersInfoRequest
                 {
-                    SourceId = container.SourceId,
+                    SourceId = container.ArticleId.ToString(),
                     Condition = container.ConditionId,
                     Address = container.City,
                     Currency = container.CurrencyId,

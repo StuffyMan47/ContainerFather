@@ -50,7 +50,8 @@ public partial class AppDbContext
     public void Configure(EntityTypeBuilder<Container> builder)
     {
         builder.HasKey(x => x.Id);
-
+           
+        builder.HasIndex(x => x.ArticleId).IsUnique();
         builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
         builder.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId);
     }

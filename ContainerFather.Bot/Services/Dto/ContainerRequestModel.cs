@@ -8,6 +8,8 @@ public class ContainerRequestModel
     
     public required Guid SourceId { get; set; }
     
+    public long ArticleId { get; set; }
+    
     /// <summary>
     /// Размер
     /// </summary>
