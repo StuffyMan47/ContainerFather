@@ -130,13 +130,21 @@ public class SitePostingService : ISitePostingService
                     var idStr = row[0]?.ToString(); // Колонка A
                     var dateStr = row[5]?.ToString(); // Колонка C
                     var isCheckedStr = row[12]?.ToString(); // Колонка L
-
-                    if (long.TryParse(idStr, out var id) &&
-                        !string.IsNullOrEmpty(dateStr) &&
-                        DateTime.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", 
-                            CultureInfo.InvariantCulture, DateTimeStyles.None, out var rowDate) &&
-                        rowDate.Date == date.Date &&  // Сравнение только по дате (без времени)
-                        (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true))
+                    
+                    string[] formats = [
+                        "dd.MM.yyyy H:mm:ss",
+                        "dd.MM.yyyy HH:mm:ss", 
+                        "dd.MM.yyyy H:mm",
+                        "dd.MM.yyyy HH:mm"
+                    ];
+                    
+                    DateTime.TryParseExact(dateStr, formats,
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out var rowDate);
+                    if (long.TryParse(idStr, out var id) 
+                        && !string.IsNullOrEmpty(dateStr) 
+                        && rowDate != null 
+                        && rowDate.Date == date.Date 
+                        && (isCheckedStr?.Equals("TRUE", StringComparison.OrdinalIgnoreCase) == true))
                     {
                         selectedIds.Add(id);
                     }

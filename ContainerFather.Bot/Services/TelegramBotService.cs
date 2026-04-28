@@ -148,7 +148,7 @@ public class TelegramBotService
                     var dateStr = callbackData.Replace("post_to_site_", "");
                     if (DateTimeOffset.TryParseExact(dateStr, "dd.MM.yyyy HH:mm", null, System.Globalization.DateTimeStyles.AssumeUniversal, out var parsedDate))
                     {
-                        await _sitePostingService.ReadGoogleTable(parsedDate);
+                        await _sitePostingService.ReadGoogleTable(DateTimeOffset.UtcNow.ToLocalTime());
                         await _botClient.AnswerCallbackQuery(update.CallbackQuery.Id, "Запрос на отправку контейнеров передан в обработку", cancellationToken: cancellationToken);
                     }
                     else
