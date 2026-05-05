@@ -500,6 +500,7 @@ public class TelegramBotService
                 }).ToList(), cancellationToken);
                 
                 await WriteToGoogleSheets(containers);
+                await _sitePostingService.SendContainersToSite(containers);
                 // await SendContainersToSite(containers);
             }
         }
