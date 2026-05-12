@@ -38,7 +38,9 @@ public class BroadcastService : IBroadcastService
         _userRepository = userRepository;
         _broadcastMessageRepository = broadcastMessageRepository;
         _chatRepository = chatRepository;
-        _botClient = new TelegramBotClient(options.Value.Token);;
+        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+        _botClient = new TelegramBotClient(clientOptions, httpClient);
         _logger = logger;
     }
 

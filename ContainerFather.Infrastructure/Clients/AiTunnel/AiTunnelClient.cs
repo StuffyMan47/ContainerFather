@@ -183,7 +183,7 @@ public class AiTunnelClient : IAiTunnelClient
                                       ```  
                                       → `PriceWithTax: 68000`, `PriceWithoutTax: 82900`  
                                     - Правило 4:** «от 100 тыс» → `PriceWithTax: 100000`.  
-                                    - Правило 5:** Если цена указана без НДС/без пометок → `PriceWithTax: [число]`, `PriceWithoutTax: null`.  
+                                    - Правило 5:** Если цена указана без НДС/без пометок → `PriceWithoutTax: [число]`, `PriceWithTax: null`.  
 
                                   - `Availability`  
                                     - «много», «В наличии» → `"В наличии"`  

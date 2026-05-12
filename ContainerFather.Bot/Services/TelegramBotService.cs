@@ -82,7 +82,9 @@ public class TelegramBotService
         _getStatisticHandler = getStatisticHandler ?? throw new ArgumentNullException(nameof(getStatisticHandler));
         _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _botClient = new TelegramBotClient(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+        _botClient = new TelegramBotClient(clientOptions, httpClient);
         _environment = environment;
         _aiTunnelClient = aiTunnelClient ?? throw new ArgumentNullException(nameof(aiTunnelClient));
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));

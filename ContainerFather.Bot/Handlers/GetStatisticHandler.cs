@@ -22,7 +22,9 @@ public class GetStatisticHandler(
 {
     public async Task SendUserStatistic(long userId, long telegramChatId, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+        var botClient = new TelegramBotClient(clientOptions, httpClient);
 
         var userStatistic = await userRepository.GetUserStatistic(userId, cancellationToken);
 
@@ -35,7 +37,9 @@ public class GetStatisticHandler(
     
     public async Task SendChatStatistic(long chatId, long telegramChatId, CancellationToken cancellationToken)
     {
-        var botClient = new TelegramBotClient(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+        var botClient = new TelegramBotClient(clientOptions, httpClient);
 
         // Получаем статистику по чату
         var statistic = await chatRepository.GetChatStatistic(chatId, CancellationToken.None);

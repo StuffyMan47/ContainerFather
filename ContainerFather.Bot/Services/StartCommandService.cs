@@ -15,7 +15,9 @@ public class StartCommandService : IStartCommandService
 
     public StartCommandService(IOptions<BotConfiguration> options)
     {
-        _botClient = new TelegramBotClient(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+        _botClient = new TelegramBotClient(clientOptions, httpClient);
         _options = options;
     }
 

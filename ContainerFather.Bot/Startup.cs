@@ -22,7 +22,9 @@ public static class Startup
         var botToken = config.GetSection("BotConfiguration").GetSection("Token");
         services.AddSingleton<TelegramBotClient>(provider =>
         {
-            return new TelegramBotClient(botToken.Value);
+            var options = new TelegramBotClientOptions(botToken.Value);
+            var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
+            return new TelegramBotClient(options, httpClient);
         });
         services.AddScoped<TelegramBotService>();
         services.AddSingleton<IAdminDialogService, AdminDialogService>();
