@@ -26,6 +26,8 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
+ENV DOTNET_SYSTEM_NET_DISABLEIPV6=1
+
 # RUN apt-get update && apt-get install -y \
 #     package1 \
 #     package2 \
