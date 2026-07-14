@@ -1,8 +1,6 @@
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using ClosedXML.Excel;
 using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Bot.AiTunnelService.Model;
 using ContainerFather.Bot.Handlers;
@@ -10,16 +8,13 @@ using ContainerFather.Bot.Helpers;
 using ContainerFather.Bot.Services.Dto;
 using ContainerFather.Bot.Services.Interfaces;
 using ContainerFather.Bot.SiteService;
-using ContainerFather.Bot.SiteService.Model;
 using ContainerFather.Bot.States;
 using ContainerFather.Core.Enums;
 using ContainerFather.Core.Enums.SiteEnums;
-using ContainerFather.Core.Interfaces.Settings;
 using ContainerFather.Core.Interfaces.Settings.Models;
 using ContainerFather.Core.UseCases.BroadcastMessages.Interfaces;
 using ContainerFather.Core.UseCases.BroadcastMessages.Models;
 using ContainerFather.Core.UseCases.Chats.Interfaces;
-using ContainerFather.Core.UseCases.Chats.Models;
 using ContainerFather.Core.UseCases.Containers.Interfaces;
 using ContainerFather.Core.UseCases.Containers.Models;
 using ContainerFather.Core.UseCases.Messages.Interfaces;
@@ -30,7 +25,6 @@ using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
@@ -38,7 +32,7 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace ContainerFather.Bot.Services;
+namespace ContainerFather.Bot.Services.TelegramBot;
 
 public class TelegramBotService
 {
@@ -82,7 +76,7 @@ public class TelegramBotService
         _getStatisticHandler = getStatisticHandler ?? throw new ArgumentNullException(nameof(getStatisticHandler));
         _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         _botClient = new TelegramBotClient(clientOptions, httpClient);
         _environment = environment;
@@ -97,7 +91,7 @@ public class TelegramBotService
         try
         {
             if (update.Message != null && update.Message.From != null &&
-                _botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+                _botConfiguration.TelegramAdminIds.Contains(update.Message.From.Id) &&
                 _adminDialogService.IsInDialog(update.Message.From.Id))
             {
                 var adminId = update.Message.From.Id;
@@ -127,7 +121,7 @@ public class TelegramBotService
             if (update.Type == UpdateType.Message &&
                 update.Message?.From != null &&
                 !update.Message.Text.StartsWith('/') &&
-                !_botConfiguration.AdminIds.Contains(update.Message.From.Id) &&
+                !_botConfiguration.TelegramAdminIds.Contains(update.Message.From.Id) &&
                 update.Message.Chat.Type is ChatType.Private)
             {
                 await ForwardUserMessageToAdminsAsync(update.Message, cancellationToken);
@@ -268,6 +262,7 @@ public class TelegramBotService
 
                 var chatId = await _chatRepository.GetOrCreateChat(message.Chat.Id,
                     message.Chat.Title ?? "no name group",
+                    MessengerType.Telegram,
                     cancellationToken);
                 var userId = await SaveOrUpdateUserAsync(message.From!, chatId, cancellationToken);
 
@@ -293,7 +288,7 @@ public class TelegramBotService
 
             if (message.Chat.Type is ChatType.Private)
             {
-                var adminIds = _botConfiguration.AdminIds;
+                var adminIds = _botConfiguration.TelegramAdminIds;
                 if (adminIds.Contains((long)message.From?.Id))
                 {
                     // Проверяем активную сессию рассылки
@@ -501,7 +496,7 @@ public class TelegramBotService
                     UserId = userInfo.Id
                 }).ToList(), cancellationToken);
                 
-                await WriteToGoogleSheets(containers);
+                await WriteToGoogleSheets(containers, MessengerType.Telegram);
                 await _sitePostingService.SendContainersToSite(containers);
                 // await SendContainersToSite(containers);
             }
@@ -576,6 +571,7 @@ public class TelegramBotService
                 {
                     TelegramId = user.Id,
                     Username = user.Username ?? user.FirstName,
+                    MessengerType = MessengerType.Telegram,
                     UserType = updateType ? UserType.BotUser : UserType.Subscriber,
                 };
                 userId = await _userRepository.CreateUser(newUser, cancellationToken);
@@ -613,7 +609,7 @@ public class TelegramBotService
 
     private async Task HandleAdminCommandAsync(Message message, string command, CancellationToken cancellationToken)
     {
-        var adminIds = _botConfiguration.AdminIds;
+        var adminIds = _botConfiguration.TelegramAdminIds;
 
         if (!adminIds.Contains((long)message.From?.Id))
         {
@@ -1230,7 +1226,7 @@ public class TelegramBotService
     //     return result;
     // }
 
-    private async Task WriteToGoogleSheets(List<ContainerRequestModel> models)
+    private async Task WriteToGoogleSheets(List<ContainerRequestModel> models, MessengerType messengerType)
     {
         var credential = GoogleCredential.FromJson(_botConfiguration.GoogleAuth.Key)
             .CreateScoped(SheetsService.Scope.Spreadsheets);
@@ -1280,7 +1276,7 @@ public class TelegramBotService
                     model.PriceWithoutTax.HasValue ? model.PriceWithoutTax.Value : string.Empty,
                     model.Currency,
                     model.Count,
-                    model.IsPublicToSite
+                    messengerType == MessengerType.Max ? "Max" : "Telegram"
                 };
                 values.Add(row);
             }
@@ -1377,15 +1373,6 @@ public class TelegramBotService
                                 StartColumnIndex = 1,  // Колонка A
                                 EndColumnIndex = 13 // До конца колонки
                             },
-                            Rule = new DataValidationRule
-                            {
-                                Condition = new BooleanCondition
-                                {
-                                    Type = "BOOLEAN"
-                                },
-                                Strict = true,
-                                ShowCustomUi = true // Показывать стандартный UI чекбокса
-                            }
                         }
                     }
                 }
@@ -1400,7 +1387,7 @@ public class TelegramBotService
                 { 
                    "Артикул", "Размер", "Тип", "Состояние", "Город", "Дата", 
                     "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
-                    "Валюта", "Количество", "Публиковать объявление на сайт"
+                    "Валюта", "Количество", "Источник"
                 }
             };
         
@@ -1439,7 +1426,7 @@ public class TelegramBotService
                 var userInfo =
                     $"Сообщение от пользователя: {message.From.FirstName} {message.From.LastName} (@{message.From.Username})";
 
-                foreach (var adminId in _botConfiguration.AdminIds)
+                foreach (var adminId in _botConfiguration.TelegramAdminIds)
                 {
                     try
                     {

@@ -26,6 +26,7 @@ public class UserRepository(AppDbContext dbContext) : IUserRepository
             LastActivity = DateTime.UtcNow,
             State = UserState.Active,
             Type = UserType.Subscriber,
+            MessengerType = request.MessengerType
         };
         dbContext.Users.Add(user);
         await dbContext.SaveChangesAsync(cancellationToken);

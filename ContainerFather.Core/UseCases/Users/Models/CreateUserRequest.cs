@@ -7,4 +7,5 @@ public class CreateUserRequest
     public required long TelegramId { get; set; }
     public required string Username { get; set; }
     public UserType UserType { get; set; } = UserType.Subscriber;
+    public required MessengerType MessengerType { get; set; }
 }

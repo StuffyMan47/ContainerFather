@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using ContainerFather.Bot.Services.Interfaces;
 using ContainerFather.Bot.States;
 
-namespace ContainerFather.Bot.Services;
+namespace ContainerFather.Bot.Services.TelegramBot;
 
 public class AdminDialogService : IAdminDialogService
 {

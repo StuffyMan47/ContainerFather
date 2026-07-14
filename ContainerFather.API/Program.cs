@@ -3,12 +3,16 @@ using System.Text.Json.Serialization;
 using ContainerFather.Bot;
 using ContainerFather.Bot.Services;
 using ContainerFather.Bot.Services.Interfaces;
+using ContainerFather.Bot.Services.MaxBot;
+using ContainerFather.Bot.Services.TelegramBot;
 using ContainerFather.Configurations;
 using ContainerFather.Core.Interfaces.Settings.Models;
 using ContainerFather.Infrastructure;
 using ContainerFather.Infrastructure.DAL.DbContext;
 using ContainerFather.Infrastructure.Swagger;
 using Hangfire;
+using Max.Bot;
+using Max.Bot.Polling;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types.Enums;
@@ -36,8 +40,42 @@ try
 
     var botClient = app.Services.GetRequiredService<TelegramBotClient>();
     var botService = app.Services.GetRequiredService<TelegramBotService>();
+    
+    var maxClient = app.Services.GetRequiredService<MaxClient>();
+    var maxBotService = app.Services.GetRequiredService<MaxBotService>();
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
+    var maxHandler = new DelegatingUpdateHandler(
+        onMessage: async (updateContext, ct) =>
+        {
+            try
+            {
+                // updateContext.Update содержит данные события от Max API
+                await maxBotService.HandleUpdateAsync(updateContext.Update, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error handling Max bot update");
+            }
+        }
+    );
+
+// Запускаем polling в фоновой задаче
+    using var maxCts = new CancellationTokenSource();
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            logger.LogInformation("Starting Max bot in polling mode...");
+            // Стартуем опрос сервера Max
+            await maxClient.StartPollingAsync(maxHandler, cancellationToken: maxCts.Token);
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "Max bot polling crashed");
+        }
+    }, maxCts.Token);
+    
     var commandService = app.Services.GetRequiredService<IStartCommandService>();
     await commandService.SetCommandsAsync();
     

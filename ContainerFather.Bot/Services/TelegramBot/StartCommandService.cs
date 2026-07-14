@@ -1,12 +1,11 @@
 using ContainerFather.Bot.Services.Interfaces;
 using ContainerFather.Core.Interfaces.Settings.Models;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 
-namespace ContainerFather.Bot.Services;
+namespace ContainerFather.Bot.Services.TelegramBot;
 
 public class StartCommandService : IStartCommandService
 {
@@ -15,7 +14,7 @@ public class StartCommandService : IStartCommandService
 
     public StartCommandService(IOptions<BotConfiguration> options)
     {
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         _botClient = new TelegramBotClient(clientOptions, httpClient);
         _options = options;
@@ -53,7 +52,7 @@ public class StartCommandService : IStartCommandService
                 new() {Command = "getsubscribers", Description = "Посмотреть кто подписан на бота и получает рассылку"}
             };
 
-            foreach (var adminId in _options.Value.AdminIds)
+            foreach (var adminId in _options.Value.TelegramAdminIds)
             {
                 try
                 {

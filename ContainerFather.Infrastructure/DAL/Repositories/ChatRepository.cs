@@ -20,18 +20,19 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
         await dbContext.Database.ExecuteSqlRawAsync(sql, userId, chatId);
     }
     
-    public async Task<long> GetOrCreateChat(long telegramChatId, string name, CancellationToken cancellationToken)
+    public async Task<long> GetOrCreateChat(long telegramChatId, string name, MessengerType messengerType, CancellationToken cancellationToken)
     {
-        var chat = await dbContext.Chats.Where(x=>x.TelegramId == telegramChatId).FirstOrDefaultAsync(cancellationToken);
+        var chat = await dbContext.Chats.Where(x=>x.ChatId == telegramChatId).FirstOrDefaultAsync(cancellationToken);
 
         if (chat == null)
         {
             chat = new Chat
             {
-                TelegramId = telegramChatId,
+                ChatId = telegramChatId,
                 CreatedAt = DateTimeOffset.UtcNow,
                 Description = null,
                 Name = name,
+                MessengerType = messengerType,
             };
             dbContext.Chats.Add(chat);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -42,9 +43,10 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
     {
         var chat = new Chat()
         {
-            TelegramId = request.Id,
+            ChatId = request.Id,
             Name = request.Name,
             CreatedAt = DateTime.UtcNow,
+            MessengerType = request.MessengerType,
             Description = null
         };
         dbContext.Chats.Add(chat);
@@ -58,7 +60,7 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
         {
             ChatId = x.Id,
             ChatName = x.Name,
-            TelegramId = x.TelegramId,
+            TelegramId = x.ChatId,
         }).ToListAsync(cancellationToken);
         
         return result;
@@ -121,7 +123,7 @@ public class ChatRepository(AppDbContext dbContext) : IChatRepository
             {
                 Id = x.Id,
                 Name = x.Name,
-                TelegramId = x.TelegramId
+                TelegramId = x.ChatId
             }).FirstOrDefaultAsync(cancellationToken);
         return result;
     }

@@ -12,6 +12,7 @@
       <PackageReference Include="Hangfire" Version="1.8.22" />
       <PackageReference Include="Hangfire.Console" Version="1.4.3" />
       <PackageReference Include="Hangfire.PostgreSql" Version="1.20.12" />
+      <PackageReference Include="MaxMessenger.Bot" Version="0.6.2-alpha" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         <PrivateAssets>all</PrivateAssets>
@@ -23,6 +24,11 @@
 
     <ItemGroup>
       <ProjectReference Include="..\ContainerFather.Core\ContainerFather.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Services\MaxBot\Dto\" />
+      <Folder Include="Services\MaxBot\Interface\" />
     </ItemGroup>
 
 </Project>

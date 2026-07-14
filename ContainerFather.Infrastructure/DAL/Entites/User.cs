@@ -10,6 +10,7 @@ public class User : BaseEntity
     public DateTime LastActivity { get; init; } = DateTime.UtcNow;
     public UserState State { get; init; } = UserState.Active;
     public UserType Type { get; init; } = UserType.Subscriber;
+    public required MessengerType MessengerType { get; init; }
     
     // Навигационные свойства
     public List<Message> Messages { get; init; } = [];

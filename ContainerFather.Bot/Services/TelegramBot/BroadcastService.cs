@@ -11,11 +11,10 @@ using ContainerFather.Core.UseCases.Users.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace ContainerFather.Bot.Services;
+namespace ContainerFather.Bot.Services.TelegramBot;
 
 public class BroadcastService : IBroadcastService
 {
@@ -38,7 +37,7 @@ public class BroadcastService : IBroadcastService
         _userRepository = userRepository;
         _broadcastMessageRepository = broadcastMessageRepository;
         _chatRepository = chatRepository;
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         _botClient = new TelegramBotClient(clientOptions, httpClient);
         _logger = logger;

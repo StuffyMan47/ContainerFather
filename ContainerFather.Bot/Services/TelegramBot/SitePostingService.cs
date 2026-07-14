@@ -1,5 +1,4 @@
 using System.Globalization;
-using ContainerFather.Bot.AiTunnelService;
 using ContainerFather.Bot.Helpers;
 using ContainerFather.Bot.Services.Dto;
 using ContainerFather.Bot.Services.Interfaces;
@@ -12,16 +11,14 @@ using ContainerFather.Core.UseCases.Chats.Interfaces;
 using ContainerFather.Core.UseCases.Containers.Interfaces;
 using ContainerFather.Core.UseCases.Messages.Interfaces;
 using ContainerFather.Core.UseCases.Users.Interfaces;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Options;
-using Telegram.Bot;
-using Telegram.Bot.Types.ReplyMarkups;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
-using Google.Apis.Sheets.v4.Data;
+using Microsoft.Extensions.Options;
+using Telegram.Bot;
+using Telegram.Bot.Types.ReplyMarkups;
 
-namespace ContainerFather.Bot.Services;
+namespace ContainerFather.Bot.Services.TelegramBot;
 
 public class SitePostingService : ISitePostingService
 {
@@ -58,7 +55,7 @@ public class SitePostingService : ISitePostingService
         _getStatisticHandler = getStatisticHandler ?? throw new ArgumentNullException(nameof(getStatisticHandler));
         _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         _botClient = new TelegramBotClient(clientOptions, httpClient);
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));

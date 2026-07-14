@@ -22,7 +22,7 @@ public class GetStatisticHandler(
 {
     public async Task SendUserStatistic(long userId, long telegramChatId, CancellationToken cancellationToken)
     {
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         var botClient = new TelegramBotClient(clientOptions, httpClient);
 
@@ -37,7 +37,7 @@ public class GetStatisticHandler(
     
     public async Task SendChatStatistic(long chatId, long telegramChatId, CancellationToken cancellationToken)
     {
-        var clientOptions = new TelegramBotClientOptions(options.Value.Token);
+        var clientOptions = new TelegramBotClientOptions(options.Value.TelegramToken);
         var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(360) };
         var botClient = new TelegramBotClient(clientOptions, httpClient);
 

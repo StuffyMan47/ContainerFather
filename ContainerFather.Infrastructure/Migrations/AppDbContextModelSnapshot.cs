@@ -84,6 +84,10 @@ namespace ContainerFather.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<long>("ChatId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("chat_id");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -92,14 +96,14 @@ namespace ContainerFather.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<int>("MessengerType")
+                        .HasColumnType("integer")
+                        .HasColumnName("messenger_type");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("name");
-
-                    b.Property<long>("TelegramId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("telegram_id");
 
                     b.HasKey("Id");
 
@@ -278,6 +282,10 @@ namespace ContainerFather.Infrastructure.Migrations
                     b.Property<DateTime>("LastActivity")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("last_activity");
+
+                    b.Property<int>("MessengerType")
+                        .HasColumnType("integer")
+                        .HasColumnName("messenger_type");
 
                     b.Property<int>("State")
                         .HasColumnType("integer")
