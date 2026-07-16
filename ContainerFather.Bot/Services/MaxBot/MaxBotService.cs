@@ -75,19 +75,7 @@ public class MaxBotService
         _getStatisticHandler = getStatisticHandler ?? throw new ArgumentNullException(nameof(getStatisticHandler));
         _broadcastService = broadcastService ?? throw new ArgumentNullException(nameof(broadcastService));
         _botConfiguration = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        // var clientOptions = new MaxBotClientOptions()
-        // {
-        //     BaseUrl = "https://platform-api2.max.ru/me",
-        //     RetryCount = 5,
-        //     RetryBaseDelay = new TimeSpan(0, 1, 0),
-        //     EnableDetailedLogging = true,
-        // };
-        
         _maxBotClient = maxBotClient ?? throw new ArgumentNullException(nameof(maxBotClient));
-        // _maxBotClient = new MaxClient(new MaxBotOptions
-        // {
-        //     Token = options.Value.MaxToken,
-        // });
         _environment = environment;
         _aiTunnelClient = aiTunnelClient ?? throw new ArgumentNullException(nameof(aiTunnelClient));
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));
@@ -116,6 +104,47 @@ public class MaxBotService
                     cancellationToken);
                 var userId = await SaveOrUpdateUserAsync(message.Sender!, chatId, cancellationToken);
 
+                
+                // bool HasTextLinkEntities(Message message) => 
+                //     message.Entities?.Any(x => x.Type == MessageEntityType.TextLink) ?? false;
+
+                if (ContainsLink(message.Text))
+                {
+                    try
+                    {
+                        //пересылка сообщения с ссылкой
+                        await _maxBotClient.Messages.ForwardMessageAsync(
+                            // chatId: 1037799385,
+                            messageId: message.Mid,
+                            userId: 182677680,
+                            cancellationToken: cancellationToken);
+                        
+                        await _maxBotClient.Messages.DeleteMessageAsync(
+                            messageId: message.Mid,
+                            cancellationToken: cancellationToken);
+
+                        // Можно отправить предупреждение пользователю
+                        await _maxBotClient.Messages.SendMessageAsync(
+                            chatId: message.Recipient.ChatId.Value,
+                            text: $"Запрещено отправлять ссылки в чате",
+                            cancellationToken: cancellationToken);
+
+                        return; // Прерываем дальнейшую обработку
+                    }
+                    catch (Exception ex)
+                    {
+                        // Бот не имеет прав на удаление сообщений
+                        // Можно отправить сообщение в лог или админу
+                        await _maxBotClient.Messages.SendMessageAsync(
+                            chatId: 244266512,
+                            text: "Ошибка при удалении сообщения" +
+                            $"{ex.Message}\n" +
+                            // $"update: {update.Message?.Username ?? "непонятно кого"}, update type : {update.Type}" +
+                            $"было написано {update.Message?.Text}",
+                            cancellationToken: cancellationToken);
+                    }
+                }
+                
                 //обработка через ИИ и запись в excel
                 List<string> stopWords = ["терминал", "куплю", "ищу", "предложите"];
                 if (!string.IsNullOrEmpty(text) &&
@@ -124,7 +153,7 @@ public class MaxBotService
                     //покупка
                 }
                 else if (!string.IsNullOrEmpty(text) &&
-                         update.Message.Recipient?.ChatId == -76706245251088) //-69316722843808
+                         update.Message.Recipient?.ChatId == -69316722843808)//-76706245251088)
                 {
                     await HandleMessage(update, message, cancellationToken);
                 }
@@ -289,7 +318,7 @@ public class MaxBotService
                 
                 await WriteToGoogleSheets(containers, MessengerType.Max);
                 
-                // await _sitePostingService.SendContainersToSite(containers);
+                await _sitePostingService.SendContainersToSite(containers);
                 // await SendContainersToSite(containers);
             }
         }
