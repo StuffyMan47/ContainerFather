@@ -30,6 +30,7 @@ using Max.Bot;
 using Max.Bot.Configuration;
 using Max.Bot.Types;
 using Max.Bot.Types.Enums;
+using Max.Bot.Types.Requests;
 
 namespace ContainerFather.Bot.Services.MaxBot;
 
@@ -319,7 +320,17 @@ public class MaxBotService
                 await WriteToGoogleSheets(containers, MessengerType.Max);
                 
                 await _sitePostingService.SendContainersToSite(containers);
-                // await SendContainersToSite(containers);
+                foreach (var container in containers)
+                {
+                    var description = DescriptionHelper.GenerateDescription(
+                        container.ConditionId, 
+                        container.CurrencyId,
+                        container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
+                        container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value * (decimal)1.1 : container.PriceWithTax.Value * (decimal)1.1,
+                        container.City,
+                        container.CategoryId); 
+                    await SendMessageToChanel(description, $"https://xn--e1aalcpcdvnp.xn--p1ai/?artnumber={container.ArticleId}");
+                }
             }
         }
         catch (Exception ex)
@@ -612,5 +623,13 @@ public class MaxBotService
     {
         var weekEnd = weekStart.AddDays(6);
         return $"{weekStart:dd.MM.yy}-{weekEnd:dd.MM.yy}";
+    }
+
+    public async Task SendMessageToChanel(string text, string url)
+    {
+        await _maxBotClient.Messages.SendMessageAsync(new SendMessageRequest()
+        {
+            Text = $"Добрый день, коллеги, {text}\nСсылка: {url} "
+        }, -72880335247520);
     }
 }

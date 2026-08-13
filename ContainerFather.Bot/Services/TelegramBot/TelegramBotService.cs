@@ -24,6 +24,8 @@ using Google.Apis.Auth.OAuth2;
 using Google.Apis.Services;
 using Google.Apis.Sheets.v4;
 using Google.Apis.Sheets.v4.Data;
+using Max.Bot;
+using Max.Bot.Types.Requests;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Options;
 using Telegram.Bot;
@@ -51,6 +53,7 @@ public class TelegramBotService
     private readonly ISiteClient _siteClient;
     private readonly IContainerRepository _containerRepository;
     private readonly ISitePostingService _sitePostingService;
+    private readonly MaxClient _maxBotClient;
 
     public TelegramBotService(
         IUserRepository userRepository,
@@ -65,7 +68,9 @@ public class TelegramBotService
         ISiteClient siteClient,
         ISitePostingService sitePostingService,
         IContainerRepository containerRepository,
-        IOptions<BotConfiguration> options)
+        IOptions<BotConfiguration> options,
+        MaxClient maxBotClient
+        )
     {
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _messageRepository = messageRepository ?? throw new ArgumentNullException(nameof(messageRepository));
@@ -84,6 +89,7 @@ public class TelegramBotService
         _siteClient = siteClient ?? throw new ArgumentNullException(nameof(siteClient));
         _sitePostingService = sitePostingService ?? throw new ArgumentNullException(nameof(sitePostingService));
         _containerRepository = containerRepository ?? throw new ArgumentNullException(nameof(containerRepository));
+        _maxBotClient = maxBotClient ?? throw new ArgumentNullException(nameof(maxBotClient));
     }
 
     public async Task HandleUpdateAsync(Update update, CancellationToken cancellationToken)
@@ -498,7 +504,17 @@ public class TelegramBotService
                 
                 await WriteToGoogleSheets(containers, MessengerType.Telegram);
                 await _sitePostingService.SendContainersToSite(containers);
-                // await SendContainersToSite(containers);
+                foreach (var container in containers)
+                {
+                    var description = DescriptionHelper.GenerateDescription(
+                        container.ConditionId, 
+                        container.CurrencyId,
+                        container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
+                        container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value * (decimal)1.1 : container.PriceWithTax.Value * (decimal)1.1,
+                        container.City,
+                        container.CategoryId); 
+                    await SendMessageToChanel(description, $"https://xn--e1aalcpcdvnp.xn--p1ai/?artnumber={container.ArticleId}");
+                }
             }
         }
         catch (Exception ex)
@@ -1521,4 +1537,12 @@ public class TelegramBotService
     //         }
     //     }
     // }
+    
+    public async Task SendMessageToChanel(string text, string url)
+    {
+        await _maxBotClient.Messages.SendMessageAsync(new SendMessageRequest()
+        {
+            Text = $"Добрый день, коллеги, {text}\nСсылка: {url} "
+        }, -72880335247520);
+    }
 }
