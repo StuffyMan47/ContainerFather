@@ -1542,7 +1542,7 @@ public class TelegramBotService
     {
         await _maxBotClient.Messages.SendMessageAsync(new SendMessageRequest()
         {
-            Text = $"Добрый день, коллеги, {text}\nСсылка: {url} "
+            Text = $"Коллеги, {text}\nСсылка: {url}\nНомер телефона: 7(931)521-07-67"
         }, -72880335247520);
     }
 }
