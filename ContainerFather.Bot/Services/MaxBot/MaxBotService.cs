@@ -320,16 +320,24 @@ public class MaxBotService
                 await WriteToGoogleSheets(containers, MessengerType.Max);
                 
                 await _sitePostingService.SendContainersToSite(containers);
-                foreach (var container in containers)
+                DateTime moscowTime = DateTime.UtcNow.AddHours(3);
+
+                if (moscowTime.Hour >= 9 && moscowTime.Hour < 18)
                 {
-                    var description = DescriptionHelper.GenerateDescription(
-                        container.ConditionId, 
-                        container.CurrencyId,
-                        container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
-                        container.PriceWithoutTax.HasValue ? container.PriceWithoutTax.Value * (decimal)1.1 : container.PriceWithTax.Value * (decimal)1.1,
-                        container.City,
-                        container.CategoryId); 
-                    await SendMessageToChanel(description, $"https://xn--e1aalcpcdvnp.xn--p1ai/?artnumber={container.ArticleId}");
+                    foreach (var container in containers)
+                    {
+                        var description = DescriptionHelper.GenerateDescription(
+                            container.ConditionId,
+                            container.CurrencyId,
+                            container.PriceWithoutTax.HasValue ? PriceType.WithoutTax : PriceType.WithTax,
+                            container.PriceWithoutTax.HasValue
+                                ? container.PriceWithoutTax.Value * (decimal)1.1
+                                : container.PriceWithTax.Value * (decimal)1.1,
+                            container.City,
+                            container.CategoryId);
+                        await SendMessageToChanel(description,
+                            $"https://xn--e1aalcpcdvnp.xn--p1ai/?artnumber={container.ArticleId}");
+                    }
                 }
             }
         }
@@ -629,7 +637,7 @@ public class MaxBotService
     {
         await _maxBotClient.Messages.SendMessageAsync(new SendMessageRequest()
         {
-            Text = $"Коллеги, {text}\nСсылка: {url}\nНомер телефона: 7(931)521-07-67"
+            Text = $"{text}\nСсылка: {url}\nНомер телефона: +7(931)521-07-67"
         }, -72880335247520);
     }
 }
