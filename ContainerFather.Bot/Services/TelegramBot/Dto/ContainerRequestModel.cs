@@ -73,7 +73,7 @@ public class ContainerRequestModel
     public required int Count { get; set; }
     
     /// <summary>
-    /// Будет ли опубликована позиция на сайт
+    /// Ссылка на сообщение
     /// </summary>
-    public bool IsPublicToSite { get; set; }
+    public required string MessageUrl { get; set; }
 }

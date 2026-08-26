@@ -294,7 +294,8 @@ public class MaxBotService
                         Type = x.Type,
                         Count = x.Count,
                         Username = $"@{message.Sender?.Username ?? message.Sender?.FirstName}",
-                        CurrencyId = x.Currency
+                        CurrencyId = x.Currency,
+                        MessageUrl = ""
                     };
                     containers.Add(container);
                 }
@@ -314,7 +315,8 @@ public class MaxBotService
                     Address = x.City,
                     Latitude = x.Latitude,
                     Longitude = x.Longitude,
-                    UserId = userInfo.Id
+                    UserId = userInfo.Id,
+                    MessageId = x.MessageUrl
                 }).ToList(), cancellationToken);
                 
                 await WriteToGoogleSheets(containers, MessengerType.Max);
@@ -607,7 +609,7 @@ public class MaxBotService
                 { 
                    "Артикул", "Размер", "Тип", "Состояние", "Город", "Дата", 
                     "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
-                    "Валюта", "Количество", "Источник"
+                    "Валюта", "Количество", "Источник", "Сообщение"
                 }
             };
         

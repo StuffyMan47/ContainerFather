@@ -170,7 +170,8 @@ public class SitePostingService : ISitePostingService
                     Username = c.Username,
                     CategoryId = c.CategoryId,
                     Size = c.CategoryId.ToString(),
-                    Type = c.CategoryId.ToString()
+                    Type = c.CategoryId.ToString(),
+                    MessageUrl = ""
                 }).ToList();
 
                 await SendContainersToSite(containersToPost);

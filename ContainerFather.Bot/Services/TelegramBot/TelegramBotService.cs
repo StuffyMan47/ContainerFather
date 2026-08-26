@@ -479,7 +479,8 @@ public class TelegramBotService
                         Type = x.Type,
                         Count = x.Count,
                         Username = $"@{message.From?.Username ?? message.From?.FirstName}",
-                        CurrencyId = x.Currency
+                        CurrencyId = x.Currency,
+                        MessageUrl = $"https://t.me/ContainerTradingHub/{message.MessageId}"
                     };
                     containers.Add(container);
                 }
@@ -499,7 +500,8 @@ public class TelegramBotService
                     Address = x.City,
                     Latitude = x.Latitude,
                     Longitude = x.Longitude,
-                    UserId = userInfo.Id
+                    UserId = userInfo.Id,
+                    MessageId = x.MessageUrl
                 }).ToList(), cancellationToken);
                 
                 await WriteToGoogleSheets(containers, MessengerType.Telegram);
@@ -1301,13 +1303,14 @@ public class TelegramBotService
                     model.PriceWithoutTax.HasValue ? model.PriceWithoutTax.Value : string.Empty,
                     model.Currency,
                     model.Count,
-                    messengerType == MessengerType.Max ? "Max" : "Telegram"
+                    messengerType == MessengerType.Max ? "Max" : "Telegram",
+                    model.MessageUrl
                 };
                 values.Add(row);
             }
 
             // Динамическое определение диапазона
-            var range = $"{sheetName}!A:M";
+            var range = $"{sheetName}!A:N";
 
             var valueRange = new ValueRange
             {
@@ -1382,7 +1385,7 @@ public class TelegramBotService
                             Properties = new SheetProperties
                             {
                                 Title = sheetName,
-                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 13 }
+                                GridProperties = new GridProperties { RowCount = 5000, ColumnCount = 14 }
                             }
                         }
                     },
@@ -1396,7 +1399,7 @@ public class TelegramBotService
                                 StartRowIndex = 1,      // Строка 2 (0-based)
                                 EndRowIndex = 5000,     // До строки 5000
                                 StartColumnIndex = 1,  // Колонка A
-                                EndColumnIndex = 13 // До конца колонки
+                                EndColumnIndex = 14 // До конца колонки
                             },
                         }
                     }
@@ -1412,7 +1415,7 @@ public class TelegramBotService
                 { 
                    "Артикул", "Размер", "Тип", "Состояние", "Город", "Дата", 
                     "Продавец", "Наличие", "Цена с НДС", "Цена без НДС", 
-                    "Валюта", "Количество", "Источник"
+                    "Валюта", "Количество", "Источник", "Сообщение"
                 }
             };
         

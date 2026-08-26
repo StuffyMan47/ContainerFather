@@ -17,5 +17,5 @@ public class CreateContainerListRequest
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public long? UserId { get; set; }
-    public long? MessageId { get; set; }
+    public string? MessageId { get; set; }
 }

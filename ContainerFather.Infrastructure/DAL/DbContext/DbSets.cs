@@ -53,6 +53,5 @@ public partial class AppDbContext
            
         builder.HasIndex(x => x.ArticleId).IsUnique();
         builder.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId);
-        builder.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId);
     }
 }
