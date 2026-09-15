@@ -385,35 +385,53 @@ public class TelegramBotService
     {
         List<AiContainerResponse> objects = new List<AiContainerResponse>();
         string result = null;
-        try
+        int maxRetries = 5;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            result = await _aiTunnelClient.SendMessage(message.Text);
-            objects = JsonSerializer.Deserialize<List<AiContainerResponse>>(result);
-        }
-        catch (JsonException ex)
-        {
-            if (result == null || !result.Contains("Амбасадор"))
+            try
             {
-                await _botClient.SendMessage(
-                    "714862316",
-                    "Ошибка при десериализации сообщения из ai tunnel:" +
-                    $"{ex.Message}\n" +
-                    $"username: {message?.From?.Username}\n" +
-                    $"message: {message?.Text}",
-                    cancellationToken: cancellationToken);
-                throw;
+                result = await _aiTunnelClient.SendMessage(message.Text);
+                objects = JsonSerializer.Deserialize<List<AiContainerResponse>>(result);
+                break;
             }
-        }
-        catch (Exception ex)
-        {
-            await _botClient.SendMessage(
-                "714862316",
-                "Ошибка при обработке сообщения в ai tunnel:" +
-                $"{ex.Message}\n" +
-                $"username: {message?.From?.Username}\n" +
-                $"message: {message?.Text}",
-                cancellationToken: cancellationToken);
-            throw;
+            catch (JsonException ex)
+            {
+                if (result != null && result.Contains("Амбасадор"))
+                {
+                    break;
+                }
+
+                if (attempt == maxRetries)
+                {
+                    await _botClient.SendMessage(
+                        "714862316",
+                        $"Ошибка при десериализации сообщения из ai tunnel (после {maxRetries} попыток):" +
+                        $"{ex.Message}\n" +
+                        $"username: {message?.From?.Username}\n" +
+                        $"message: {message?.Text}",
+                        cancellationToken: cancellationToken);
+                    throw;
+                }
+                
+                await Task.Delay(1000, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                if (attempt == maxRetries)
+                {
+                    await _botClient.SendMessage(
+                        "714862316",
+                        $"Ошибка при обработке сообщения в ai tunnel (после {maxRetries} попыток):" +
+                        $"{ex.Message}\n" +
+                        $"username: {message?.From?.Username}\n" +
+                        $"message: {message?.Text}",
+                        cancellationToken: cancellationToken);
+                    throw;
+                }
+                
+                await Task.Delay(1000, cancellationToken);
+            }
         }
 
         var allMissingFields = new HashSet<string>();
@@ -1420,8 +1438,10 @@ public class TelegramBotService
             };
         
             var headerRange = new ValueRange { Values = headers };
-            var headerRequest = service.Spreadsheets.Values.Update(headerRange, spreadsheetId, $"{sheetName}!A1:M1");
-            headerRequest.ValueInputOption = SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
+            var headerRequest =
+                service.Spreadsheets.Values.Update(headerRange, spreadsheetId, $"{sheetName}!A1:N1");
+            headerRequest.ValueInputOption =
+                SpreadsheetsResource.ValuesResource.UpdateRequest.ValueInputOptionEnum.USERENTERED;
             await headerRequest.ExecuteAsync();
         }
     }
