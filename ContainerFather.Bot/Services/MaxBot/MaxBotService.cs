@@ -183,9 +183,38 @@ public class MaxBotService
         if (string.IsNullOrWhiteSpace(text))
             return false;
 
-        // Регулярное выражение для поиска URL
         var urlPattern = @"(https?://|www\.)[^\s]+";
-        return Regex.IsMatch(text, urlPattern, RegexOptions.IgnoreCase);
+        var matches = Regex.Matches(text, urlPattern, RegexOptions.IgnoreCase);
+        
+        if (matches.Count == 0) return false;
+
+        var allowedUrls = new[] 
+        { 
+            "https://max.ru/id166106854406_biz", 
+            "https://max.ru/join/6V2LpcbRPjbb1a5_sPclvd781XFjG18IIA-bL7NM4PM",
+            "https://контейнеру.рф/kak-rabotaet-besplatnoe-razmeshchenie/",
+            "https://chat.whatsapp.com/LUOfQRxmlzY9q85lvYTh8j"
+        };
+
+        foreach (Match match in matches)
+        {
+            var urlStr = match.Value;
+            bool isAllowed = false;
+            foreach (var allowedUrl in allowedUrls)
+            {
+                if (urlStr.Equals(allowedUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    isAllowed = true;
+                    break;
+                }
+            }
+            if (!isAllowed)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static long GenerateArticleId()
